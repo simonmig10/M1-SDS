@@ -15,3 +15,11 @@ Første del af SDS semester
 
 - Tryk ja til invitation 
 - Få så koblet Github og R sammen!
+
+## Andreas's arbejdsopgaver: 
+
+- Stop med at  spille TFT 
+
+## Simons arbejdsopgaver:
+
+- Holde styr på det hele
