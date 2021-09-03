@@ -10,3 +10,8 @@ Første del af SDS semester
 ## Kristoffers arbejdsopgaver: 
 
 - Få så koblet Github og R sammen!
+
+## Mikkels arbejdsopgaver:
+
+- Tryk ja til invitation 
+- Få så koblet Github og R sammen!
