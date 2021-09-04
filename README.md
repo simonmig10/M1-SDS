@@ -5,7 +5,7 @@ Første del af SDS semester
 
 1. Bla bla bla Kristoffer 
 
-2. 
+2. Alle skal læse Velkomst filen
 
 ## Kristoffers arbejdsopgaver: 
 
