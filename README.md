@@ -18,7 +18,7 @@ Første del af SDS semester
 
 ## Andreas's arbejdsopgaver: 
 
-- Stop med at  spille TFT 
+- Spil mere TFT 
 
 ## Simons arbejdsopgaver:
 
