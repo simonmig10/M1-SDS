@@ -65,4 +65,5 @@ race = data %>%
 race
 ```
 
+Det ligner lort
 
