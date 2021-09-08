@@ -1,0 +1,61 @@
+---
+title: "Workshop 1"
+author: "Andreas Methling"
+date: "8 sep 2021"
+output: pdf_document
+---
+
+```{r}
+library(readr)
+library(tidyverse)
+data <- read_csv("https://sds-aau.github.io/SDS-master/M1/data/RI-clean.csv.gz")
+```
+##Tidying the data
+Looking at the data:
+```{r}
+data %>% head()
+```
+
+```{r}
+data %>% glimpse()
+```
+
+```{r}
+data %>%
+  filter(driver_gender %>% is.na()) %>% 
+  head()
+```
+There are only 6 rows where gender is undefined.
+
+```{r}
+data %>%
+  select(-id) %>%
+  summarise_all(function(x) sum(is.na(x))) %>%
+  pivot_longer(everything())
+```
+How many NA's in each collumn
+
+```{r}
+data %<>%
+  drop_na(stop_date, stop_time, driver_gender, driver_race)
+```
+Drops all NA's in stop_date, stop_time, driver_gender and driver_race.
+
+##Which department stops the most black people both in total and in shares.
+In total
+
+```{r}
+most_stop = data %>%
+  group_by(police_department) %>%
+  filter(driver_race == "Black") %>%
+  count(driver_race) %>%
+  arrange(desc(n)) %>%
+  filter(n > 20)
+most_stop
+```
+
+```{r}
+ggplot(most_stop, aes(police_department, n)) + geom_col()
+```
+
+
