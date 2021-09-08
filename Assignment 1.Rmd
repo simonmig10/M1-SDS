@@ -8,8 +8,6 @@ output: html_document
 Running libaries 
 
 ```{r}
-#
-
 library(tidyverse)
 
 library(lubridate)
@@ -70,8 +68,8 @@ trips %<>%
 
 ```{r}
 trips %>%
-  filter(trip_durration_days > 1)%>%
-  arrange(trip_durration_days)
+  filter(!is.na(date_end_time))%>%
+  filter(trip_durration_days >= 1 & trip_durration_days <= 97, date_end_time >= quantile(date_end_time, 0.01) & date_end_time <= quantile(date_end_time, 0.97))
   
   
 
@@ -80,6 +78,14 @@ trips %>%
 
 
 *Join the countrylist data to the trips data-frame using the countrycode as a key e. [Only for python users ] Set DateTime index as the start date of a trip*
+
+```{r}
+
+trips%>%
+  left_join(country, by= c("country_code" = "alpha_2"))
+
+```
+
 
 
 #people 
