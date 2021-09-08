@@ -91,11 +91,40 @@ trips%>%
 #people 
 
 *How many people have a least a “High School” diploma? Hint: For this calculation remove missing value-rows or fill with “False”.*
+```{r}
+people %>%
+  drop_na(education_raw) %>%
+  count()
+```
+First we drop the NAs. Thereafter we count the remainging observations as high school is presumed to be the lowest education in the category. From this we see that 451 people have at least a High School diploma.
+
 
 *How many “Startup Founders” have attained a “Master’s Degree”? Bonus: compared to people who don’t have a formal higher education (e.g. by using the “False” occurrences)?*
+```{r}
+people %>%
+  filter(grepl("Startup Founder", work_raw)) %>%
+  filter(grepl("Master",education_raw)) %>%
+  count()
+
+people %>%
+  filter(grepl("Startup Founder", work_raw)) %>%
+  filter(!grepl("Master",education_raw)) %>%
+  count()
+
+```
+Here we use the grepl command to filter by both the work_raw and education_raw. The grepl lets us filter by strings containing certain text. By doing this we get that 53 startup founders have attained a Master's Degree. By adding an "!" before the second grepl we can reverse the function so that we get all startup founders without a Master's degree. This shows us that 668 startup founders does not have a master's degree.
 
 *Who is the person with a Master’s Degree that has the highest number of followers? Bonus: Explore the individual further, what else can you find out?*
+```{r}
+people %>%
+  filter(grepl("Master's Degree", education_raw)) %>%
+  arrange(desc(followers)) %>%
+  head(1) %>%
+  select(-X1)
 
+```
+To get the results we first filtered in the education_raw category by strings containing "Master's Degree". Afterwards we arranged by followers in descending order, so that the top result will be the person with most followers. Thereafter we write the "head(1)" function which excludes all results not in the top of the list. In the end we use the select function to exclude the ID of the person, because this is not relevant.
+The result shows us, that the person with the most followers is @levelsio. He has 2182 followers. He follows 353. He is a software Dev, a startup founder and a creative. Furthermore he has a high school diploma, a bachelor's degree and a master's degree.
 
 #Trips
 

@@ -31,12 +31,21 @@ data%>%
 data %>%
   group_by(subject_race, search_conducted) %>%
   arrange(search_conducted) %>%
-  summarise(race_n = n()) %>%
-  mutate(search_conducted %>% as.character()) %>%
-  pivot_wider(names_from = search_conducted, values_from = n) %>%
-  mutate(pct = sum())
+  summarise(n = n()) %>%
+  #pivot_wider(names_from = search_conducted, values_from = n) %>%
+  #mutate(pct = sum())
+  ggplot(aes(x=subject_race, y = n, fill = search_conducted)) +
+  geom_col(position = "fill")
+
+
 ```
-Denne gør det samme som ovenstående (arrange blev selv tilføjet)
+
+```{r}
+data_plot %>%
+  ggplot(x)
+```
+
+
 ```{r}
 data %>%
   count(subject_race)
