@@ -48,8 +48,7 @@ In total
 most_stop = data %>%
   group_by(police_department) %>%
   filter(driver_race == "Black") %>%
-  count(driver_race) %>%
-  arrange(desc(n)) %>%
+  count(driver_race, sort = TRUE) %>%
   filter(n > 20)
 most_stop
 ```
@@ -57,5 +56,14 @@ most_stop
 ```{r}
 ggplot(most_stop, aes(police_department, n)) + geom_col()
 ```
+```{r}
+race = data %>%
+  drop_na(driver_race, drugs_related_stop) %>%
+  count(driver_race, drugs_related_stop) %>%
+  group_by(driver_race) %>%
+    mutate(pct = n / sum(n))
+race
+```
 
+Det ligner lort
 

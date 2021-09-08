@@ -1,0 +1,110 @@
+---
+title: "Assignment 1"
+output: html_document
+---
+
+#Before we start
+
+Running libaries 
+
+```{r}
+library(tidyverse)
+
+library(lubridate)
+
+library(magrittr)
+
+```
+
+
+Loading data 
+
+```{r}
+trips= read_csv("https://sds-aau.github.io/SDS-master/M1/data/trips.csv")
+
+people= read_csv("https://sds-aau.github.io/SDS-master/M1/data/people.csv")
+
+country= read_csv("https://sds-aau.github.io/SDS-master/M1/data/countrylist.csv")
+
+```
+
+
+Looking at the data: 
+
+```{r}
+glimpse(trips)
+
+glimpse(people)
+
+glimpse(country)
+```
+
+
+
+#Preprocessing
+
+*Trips: transform dates into timestamps (note: in Python, you will have to coerce errors for faulty dates)*
+
+```{r}
+trips %<>%
+  mutate(date_end_time= as.numeric(as.POSIXct(date_end, format="%Y-%m-%d")), date_start_time=as.numeric(as.POSIXct(date_start, format="%Y-%m-%d")))
+
+trips
+
+```
+
+
+*Calculate trip duration in days (you can use loops, list comprehensions or map-lambda-functions (python) to create a column that holds the numerical value of the day. You can also use the datetime package.)*
+
+```{r}
+trips %<>% 
+  mutate(trip_durration= date_end_time- date_start_time, trip_durration_days= trip_durration/86400)
+```
+
+
+
+
+*Filter extreme (fake?) observations for durations as well as dates - start and end (trips that last 234565 days / are in the 17th or 23rd century) The minimum duration of a trip is 1 day! Hint: use percentiles/quantiles to set boundaries for extreme values - between 1 and 97, calculate and store the boundaries before subsetting. Rhint: Use percent_rank(as.numeric(variable)) to create percentiles*
+
+```{r}
+trips %>%
+  filter(!is.na(date_end_time))%>%
+  filter(trip_durration_days >= 1 & trip_durration_days <= 97, date_end_time >= quantile(date_end_time, 0.01) & date_end_time <= quantile(date_end_time, 0.97))
+  
+  
+
+```
+
+
+
+*Join the countrylist data to the trips data-frame using the countrycode as a key e. [Only for python users ] Set DateTime index as the start date of a trip*
+
+```{r}
+
+trips%>%
+  left_join(country, by= c("country_code" = "alpha_2"))
+
+```
+
+
+
+#people 
+
+*How many people have a least a “High School” diploma? Hint: For this calculation remove missing value-rows or fill with “False”.*
+
+*How many “Startup Founders” have attained a “Master’s Degree”? Bonus: compared to people who don’t have a formal higher education (e.g. by using the “False” occurrences)?*
+
+*Who is the person with a Master’s Degree that has the highest number of followers? Bonus: Explore the individual further, what else can you find out?*
+
+
+#Trips
+
+*Which country received the highest number of trips? – And which the lowest?*
+
+*Which region received the highest number of trips in 2017? Use the start of trips as a time reference.*
+
+*Which country in “Western Europe” did travelers spent least time? – Provide visualization*
+
+*Do nomad Startup Founders tend to have shorter or longer trips on average?*
+
+*visualize over-time median trip duration overall (bonus: and split by world-region) The plot will look weird ^^. PyHint: Resample by week (‘W’) and calculate the size of observations. RHint: Use the floor_date function to reset dates by week.*

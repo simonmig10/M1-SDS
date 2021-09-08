@@ -1,0 +1,39 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(magrittr)
+```
+
+
+```{r}
+data = readRDS(url("https://stacks.stanford.edu/file/druid:yg821jf8611/yg821jf8611_ca_san_francisco_2020_04_01.rds"))
+```
+
+data is now loaded!
+
+```{r}
+glimpse(data)
+```
+Tidying the data
+
+```{r}
+data %>% 
+  drop_na(subject_race)
+```
+
+```{r}
+data_plot = data %>%
+  group_by(subject_race, search_conducted) %>%
+  summarise(n = n())
+data_plot
+```
+
+```{r}
+data_plot %>%
+  ggplot(aes(x = subject_race, y = n, fill = search_conducted)) + geom_col(position = "fill")
+```
+
