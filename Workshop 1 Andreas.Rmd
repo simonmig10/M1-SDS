@@ -61,8 +61,7 @@ race = data %>%
   drop_na(driver_race, drugs_related_stop) %>%
   count(driver_race, drugs_related_stop) %>%
   group_by(driver_race) %>%
-    mutate(pct = n / sum(n)) %>%
-    filter(drugs_related == TRUE)
+    mutate(pct = n / sum(n))
 race
 ```
 
