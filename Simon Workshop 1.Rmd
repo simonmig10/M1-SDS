@@ -1,0 +1,48 @@
+---
+title: "Workshop 1"
+output: html_document
+---
+
+```{r}
+library(tidyverse) # metapackage with lots of helpful functions
+library(magrittr)
+```
+
+
+```{r}
+data <- read_csv("https://sds-aau.github.io/SDS-master/M1/data/RI-clean.csv.gz")
+```
+
+```{r}
+data %>% head()
+```
+
+```{r}
+data %>% glimpse()
+```
+
+```{r}
+data%>%
+  filter(!is.na(police_department), !is.na(driver_gender), !is.na(driver_race), driver_race=="Black")%>%
+  group_by(police_department)%>%
+  count(driver_race)%>%
+  arrange(desc(n))
+  
+  
+ data%>%
+  filter(!is.na(police_department), !is.na(driver_gender), !is.na(driver_race))%>%
+  group_by(police_department)%>%
+   mutate(antal_sops= length(driver_race))
+
+Vi brugte bare kode de havde givet
+
+data %>%
+  filter(!is.na(police_department), !is.na(driver_gender), !is.na(driver_race))%>%
+  group_by(police_department)%>%
+  mutate()
+  
+
+  
+```
+
+
