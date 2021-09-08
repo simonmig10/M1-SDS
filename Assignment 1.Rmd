@@ -3,6 +3,41 @@ title: "Assignment 1"
 output: html_document
 ---
 
+#Before we start
+
+Running libaries 
+
+```{r}
+
+library(tidyverse)
+
+```
+
+
+Loading data 
+
+```{r}
+trips= read_csv("https://sds-aau.github.io/SDS-master/M1/data/trips.csv")
+
+people= read_csv("https://sds-aau.github.io/SDS-master/M1/data/people.csv")
+
+country= read_csv("https://sds-aau.github.io/SDS-master/M1/data/countrylist.csv")
+
+```
+
+
+Looking at the data: 
+
+```{r}
+glimpse(trips)
+
+glimpse(people)
+
+glimpse(country)
+```
+
+
+
 #Preprocessing
 
 *Trips: transform dates into timestamps (note: in Python, you will have to coerce errors for faulty dates)*
