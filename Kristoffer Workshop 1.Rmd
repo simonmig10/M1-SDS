@@ -1,0 +1,75 @@
+---
+title: "Workshop 1"
+output: html_document
+---
+
+```{r}
+library(tidyverse) # metapackage with lots of helpful functions
+library(magrittr)
+```
+
+
+```{r}
+data <- readRDS(url("https://stacks.stanford.edu/file/druid:yg821jf8611/yg821jf8611_ca_san_francisco_2020_04_01.rds"))
+```
+
+```{r}
+data %>% head()
+```
+
+```{r}
+data %>% glimpse()
+```
+Fra gennemgangen af Daniel
+```{r}
+#!is.na og drop_na er det samme
+data%>%
+  filter(!is.na(subject_race)) %>%
+```
+```{r}
+#virker ikke, nåede ikke at se hvad der mangler
+data %>%
+  group_by(subject_race, search_conducted) %>%
+  arrange(search_conducted) %>%
+  summarise(race_n = n()) %>%
+  mutate(search_conducted %>% as.character()) %>%
+  pivot_wider(names_from = search_conducted, values_from = n) %>%
+  mutate(pct = sum())
+```
+Denne gør det samme som ovenstående (arrange blev selv tilføjet)
+```{r}
+data %>%
+  count(subject_race)
+```
+
+
+
+
+
+
+Fra før gennemgangen af Daniel
+```{r}
+data%>%
+  filter(!is.na(police_department), !is.na(driver_gender), !is.na(driver_race), driver_race=="Black")%>%
+  group_by(police_department)%>%
+  count(driver_race)%>%
+  arrange(desc(n))
+  
+  
+ data%>%
+  filter(!is.na(police_department), !is.na(driver_gender), !is.na(driver_race))%>%
+  group_by(police_department)%>%
+   mutate(antal_sops= length(driver_race))
+
+##Vi brugte bare kode de havde givet
+
+data %>%
+  filter(!is.na(police_department), !is.na(driver_gender), !is.na(driver_race))%>%
+  group_by(police_department)%>%
+  mutate()
+  
+
+  
+```
+
+
