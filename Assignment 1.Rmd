@@ -20,11 +20,11 @@ library(magrittr)
 Loading data 
 
 ```{r}
-trips= read_csv("https://sds-aau.github.io/SDS-master/M1/data/trips.csv", show_col_types = FALSE)
+trips= read_csv("https://sds-aau.github.io/SDS-master/M1/data/trips.csv")
 
-people= read_csv("https://sds-aau.github.io/SDS-master/M1/data/people.csv", show_col_types = FALSE)
+people= read_csv("https://sds-aau.github.io/SDS-master/M1/data/people.csv")
 
-country= read_csv("https://sds-aau.github.io/SDS-master/M1/data/countrylist.csv", show_col_types = FALSE)
+country= read_csv("https://sds-aau.github.io/SDS-master/M1/data/countrylist.csv")
 
 ```
 
