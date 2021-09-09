@@ -35,7 +35,7 @@ country= read_csv("https://sds-aau.github.io/SDS-master/M1/data/countrylist.csv"
 
 Looking at the data: 
 
-```{r}
+```{r message=FALSE}
 glimpse(trips)
 
 glimpse(people)
