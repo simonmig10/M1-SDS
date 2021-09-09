@@ -67,7 +67,7 @@ trips %<>%
 *Filter extreme (fake?) observations for durations as well as dates - start and end (trips that last 234565 days / are in the 17th or 23rd century) The minimum duration of a trip is 1 day! Hint: use percentiles/quantiles to set boundaries for extreme values - between 1 and 97, calculate and store the boundaries before subsetting. Rhint: Use percent_rank(as.numeric(variable)) to create percentiles*
 
 ```{r}
-trips %>%
+trips %<>%
   filter(!is.na(date_end_time))%>%
   filter(trip_durration_days >= 1 & trip_durration_days <= 97, date_end_time >= quantile(date_end_time, 0.01) & date_end_time <= quantile(date_end_time, 0.97))
   
@@ -82,10 +82,22 @@ trips %>%
 ```{r}
 
 trips%>%
+  left_join(country, by= c("country_code" = "alpha_2")) %>%
+  count(region)
+
+UK = data.frame("UK", "Europe", "Northern Europe")
+names(UK) = c("alpha_2", "region", "sub_region")
+country = rbind(country, UK)
+
+trips%>%
+  left_join(country, by= c("country_code" = "alpha_2")) %>%
+  count(region)
+
+trips%<>%
   left_join(country, by= c("country_code" = "alpha_2"))
 
 ```
-
+1586 NAs before inserting the UK row into the country dataset, and only 44 after. This is due to the fact that the UK in the country dataset had the aplha_2 value of GB and in the trips dataset it had the country_code UK.
 
 
 #people 
@@ -120,7 +132,7 @@ people %>%
   filter(grepl("Master's Degree", education_raw)) %>%
   arrange(desc(followers)) %>%
   head(1) %>%
-  select(-X1)
+  select(-...1)
 
 ```
 To get the results we first filtered in the education_raw category by strings containing "Master's Degree". Afterwards we arranged by followers in descending order, so that the top result will be the person with most followers. Thereafter we write the "head(1)" function which excludes all results not in the top of the list. In the end we use the select function to exclude the ID of the person, because this is not relevant.
@@ -129,11 +141,71 @@ The result shows us, that the person with the most followers is @levelsio. He ha
 #Trips
 
 *Which country received the highest number of trips? – And which the lowest?*
+```{r}
+trips  %>%
+  count(country, sort =TRUE) %>%
+  filter(n %in% c(min(n), max(n)))
+
+```
+To find out which country received the most and fewest trips, we just count the number of times each country shows up in the trips datasets and then filter for the maximum and minimum value. The result shows that the most visited country is the United States with 6539, and 53 country share the price of being the lowest visited destination with one trip. Around thirteen of the countries whom has been visited the lowest amount has only numerical values in the country collumn, so those could have been dropped, but didnt because they still represent a trip just unclear to where.
 
 *Which region received the highest number of trips in 2017? Use the start of trips as a time reference.*
+```{r}
+trips %>%
+  drop_na(region) %>%
+  filter(date_start >= "2017-01-01", date_start <= "2017-12-31") %>%
+  count(region, sort = TRUE)
+
+```
+To acces regions we need to join our trips and country datasets, but we already did that earlier and saved is as our new trips dataset, so no need to do that again. Then we drop the trips which has no region becuase they are not of significance to us. Then we filter for trips that started in 2017 and count the number of times each region was visited, and then we end up with, that the most visited region in 2017 was Europe with 4659 trips. 
 
 *Which country in “Western Europe” did travelers spent least time? – Provide visualization*
+```{r}
+plot_trips = trips %>%
+  drop_na(sub_region, trip_durration_days) %>%
+  filter(sub_region == "Western Europe") %>% 
+  group_by(country) %>% 
+  summarise(total_time = sum(trip_durration_days))
+
+
+```
+To figure out which country in Western Europe travelers spent the least time we first drop the NAs from both sub_region and trip_duration_days as observations with no values in are of no interest to us. Then we filter for the sub_region Western Europe, group_by country and summarise the total number og days spent in each Western european country. The above results will now be presented visually.
+
+```{r}
+plot_trips %>% 
+  ggplot(aes(x = total_time, y = reorder(country, -total_time), fill= country)) + 
+  geom_col() + scale_fill_manual(values = rainbow(8)) +
+  ggtitle("Total number of days spent in Western European countries") +
+  labs(x = "Number of days", y = "Countries")
+
+```
+The above bar chart show visually the number of days spent in each western european country, where Monaco clearly is where travelers have spent the least amount of time.
 
 *Do nomad Startup Founders tend to have shorter or longer trips on average?*
 
+```{r}
+trips %>% 
+  left_join(people, by = c("username" = "username")) %>% 
+ filter(grepl("Startup Founder", work_raw)) %>% 
+  summarise(avg_time = mean(trip_durration_days))
+
+trips %>% 
+  left_join(people, by = c("username" = "username")) %>% 
+ filter(!grepl("Startup Founder", work_raw)) %>% 
+  summarise(avg_time = mean(trip_durration_days))
+
+```
+On average every person who is or has been a Startup Founder spend 13.74 days per trip vs. 14.33 days per trip for all other occupations. We are not sure if this is the result you guys wanted, because we had a hard time understanding what we would be comparing the startup founders average trip length to.
+
 *visualize over-time median trip duration overall (bonus: and split by world-region) The plot will look weird ^^. PyHint: Resample by week (‘W’) and calculate the size of observations. RHint: Use the floor_date function to reset dates by week.*
+
+```{r}
+trips %>%
+  drop_na(region) %>% 
+  mutate(trip_durration_week = trip_durration_days/7) %>%
+  group_by(region) %>% 
+  summarise(median = median(trip_durration_week)) %>% 
+  ggplot(aes(x = region, y = median, fill = region)) + geom_col() + scale_fill_manual(values = rainbow(5))
+  
+```
+
