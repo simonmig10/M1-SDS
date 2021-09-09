@@ -9,7 +9,7 @@ output:
 
 Running libaries 
 
-```{r}
+```{r message = FALSE}
 library(tidyverse)
 
 library(lubridate)
@@ -21,12 +21,14 @@ library(magrittr)
 
 Loading data 
 
-```{r}
-trips= read_csv("https://sds-aau.github.io/SDS-master/M1/data/trips.csv", show_col_types = FALSE)
+```{r message = FALSE}
+trips= read_csv("https://sds-aau.github.io/SDS-master/M1/data/trips.csv")
+colnames(trips)[1] = "obs"
 
-people= read_csv("https://sds-aau.github.io/SDS-master/M1/data/people.csv", show_col_types = FALSE)
+people= read_csv("https://sds-aau.github.io/SDS-master/M1/data/people.csv")
+colnames(people)[1] = "obs"
 
-country= read_csv("https://sds-aau.github.io/SDS-master/M1/data/countrylist.csv", show_col_types = FALSE)
+country= read_csv("https://sds-aau.github.io/SDS-master/M1/data/countrylist.csv")
 
 ```
 
@@ -134,7 +136,7 @@ people %>%
   filter(grepl("Master's Degree", education_raw)) %>%
   arrange(desc(followers)) %>%
   head(1) %>%
-  select(-...1)
+  select(-obs)
 
 ```
 To get the results we first filtered in the education_raw category by strings containing "Master's Degree". Afterwards we arranged by followers in descending order, so that the top result will be the person with most followers. Thereafter we write the "head(1)" function which excludes all results not in the top of the list. In the end we use the select function to exclude the ID of the person, because this is not relevant.
