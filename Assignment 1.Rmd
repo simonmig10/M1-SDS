@@ -78,7 +78,8 @@ trips %>%
 trips %<>%
   filter(!is.na(date_end_time))%>%
   filter(trip_duration_days >= 1 & trip_duration_days <= 97, 
-         date_end_time >= quantile(date_end_time, 0.01) & date_end_time <= quantile(date_end_time, 0.97))
+         date_end_time >= quantile(date_end_time, 0.01) &
+           date_end_time <= quantile(date_end_time, 0.97))
   
   
 
@@ -221,7 +222,7 @@ trips %>%
 ```
 So we are not sure what we should use the floor_date function to, instead we just made our trip_duration_days column to trip_duration_week by dividing it with 7. Beforehand we dropped the NAs and then we grouped by region to calculate the median for every region and then we plotted it. This just doesnt visualise it over time, this only visualize the median by region over the entire time period. The assignment doesnt state in which interval to check the overall development in the median, so below we plot the median by region every year in the dataset.
 
-```{r warning = FALSE}
+```{r warning = FALSE, message = FALSE}
 trips %>% 
   mutate(year = format(as.Date(trips$date_start, format="%Y-%m-%d"),"%Y")) %>% 
   drop_na(region, year) %>% 
