@@ -15,7 +15,6 @@ library(tidyverse)
 library(lubridate)
 
 library(magrittr)
-
 ```
 
 
@@ -47,20 +46,35 @@ glimpse(country)
 
 *Trips: transform dates into timestamps (note: in Python, you will have to coerce errors for faulty dates)*
 
-```{r}
-trips %<>%
-  mutate(date_end_time= as.numeric(as.POSIXct(date_end, format="%Y-%m-%d")), date_start_time=as.numeric(as.POSIXct(date_start, format="%Y-%m-%d")))
+First we remove the missing values in the columns "date_end" and "date_start", for this we use the drop_na function.
+We use the mutate function to create a new variable to show the timestamps, in the mutate function we use as.numeric to change the class of the variable from Date to numeric. We use the as.POSIXct function to tell how to make this convertion, where we specify the column "date_end" with the format "Y" (Year in 4 digits), "m" (Month in decimal number) and "d" (Day of the month in decimal number). The function as.POSIXct gives the values as number of seconds since January 1, 1970.
 
-trips
+```{r}
+
+trips %>%
+  filter(is.na(date_end) | is.na(date_start))
+
+trips %<>%
+  drop_na(date_end, date_start)%>%
+  mutate(date_end_time= as.numeric(as.POSIXct(date_end, format="%Y-%m-%d")), date_start_time=as.numeric(as.POSIXct(date_start, format="%Y-%m-%d")))%>%
+select(date_end_time, date_start_time, everything())
+
+trips %>%
+  filter(is.na(date_end_time) | is.na(date_start_time))
 
 ```
 
 
 *Calculate trip duration in days (you can use loops, list comprehensions or map-lambda-functions (python) to create a column that holds the numerical value of the day. You can also use the datetime package.)*
 
+We again use the mutate function to create a new variable called "trip_duration", this variable shows the trip duration in days. First the date_start_times (in seconds) is subtracted from the date_end_times (in seconds). Now we have the trip durration in seconds, we then devide by 86400 ($60*60*24$) to make it into days.
+
 ```{r}
 trips %<>% 
-  mutate(trip_duration= date_end_time- date_start_time, trip_duration_days= trip_duration/86400)
+  mutate(trip_duration= date_end_time- date_start_time, trip_duration_days= trip_duration/86400)%>%
+   select(trip_duration_days, everything())
+
+trips
 ```
 
 
@@ -69,11 +83,12 @@ trips %<>%
 *Filter extreme (fake?) observations for durations as well as dates - start and end (trips that last 234565 days / are in the 17th or 23rd century) The minimum duration of a trip is 1 day! Hint: use percentiles/quantiles to set boundaries for extreme values - between 1 and 97, calculate and store the boundaries before subsetting. Rhint: Use percent_rank(as.numeric(variable)) to create percentiles*
 
 ```{r}
-trips %<>%
-  filter(!is.na(date_end_time))%>%
+
+
+trimed_trips=trips %>%
   filter(trip_duration_days >= 1 & trip_duration_days <= 97, date_end_time >= quantile(date_end_time, 0.01) & date_end_time <= quantile(date_end_time, 0.97))
   
-  
+trimed_trips
 
 ```
 
