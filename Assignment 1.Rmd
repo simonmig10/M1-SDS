@@ -82,7 +82,22 @@ trips
 
 *Filter extreme (fake?) observations for durations as well as dates - start and end (trips that last 234565 days / are in the 17th or 23rd century) The minimum duration of a trip is 1 day! Hint: use percentiles/quantiles to set boundaries for extreme values - between 1 and 97, calculate and store the boundaries before subsetting. Rhint: Use percent_rank(as.numeric(variable)) to create percentiles*
 
+
+
 ```{r}
+
+trips_98_days=trips %>%
+  mutate(trip_duration_days_rank= percent_rank(trip_duration_days))%>%
+  arrange(desc(trip_duration_days_rank))%>%
+  filter(trip_duration_days_rank < 0.98)%>%
+  select(trip_duration_days_rank, trip_duration_days, everything())
+
+
+trips_98_end %>%
+  mutate(date_end_time_rank= percent_rank(date_end_time))%>%
+  arrange(desc(trip_duration_days_rank))%>%
+  filter(trip_duration_days_rank < 0.98)%>%
+  select(trip_duration_days_rank, trip_duration_days, everything())
 
 
 trimed_trips=trips %>%
