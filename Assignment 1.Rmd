@@ -101,26 +101,34 @@ trimed_trips %>%
 
 *Join the countrylist data to the trips data-frame using the countrycode as a key e. [Only for python users ] Set DateTime index as the start date of a trip*
 
+We use the left_join function to join the country datasets observations into the trips dataset. The left_join function is coded to look for matching values in the "country_code" column and the "alpha_2" column. 
+
+We can see there is 1705 NA's by using the count function. This is mainly duo to the fact that the UK in the country dataset had the aplha_2 value of "GB" and in the trips dataset it had the country_code "UK". After inserting the UK row into the country dataset there's only 44 NA's left in the "region" column, this is because there have not been a matching value in the "alpha_2" column in the country dataset.
+
 ```{r}
 
-trips%>%
-  left_join(country, by= c("country_code" = "alpha_2")) %>%
+country_new=country%>%
+  filter(!is.na(alpha_2))
+
+trimed_no_na=trimed_trips%>%
+  filter(!is.na(country_code))
+
+trimed_no_na%>%
+  left_join(country_new, by= c("country_code" = "alpha_2"))%>%
   count(region)
 
 UK = data.frame("UK", "Europe", "Northern Europe")
 names(UK) = c("alpha_2", "region", "sub_region")
-country = rbind(country, UK)
+country_new = rbind(country_new, UK)
 
-trips%>%
-  left_join(country, by= c("country_code" = "alpha_2")) %>%
+trimed_no_na%>%
+  left_join(country_new, by= c("country_code" = "alpha_2")) %>%
   count(region)
 
-trips%<>%
-  left_join(country, by= c("country_code" = "alpha_2"))
-
+trimed_no_na%>%
+  left_join(country_new, by= c("country_code" = "alpha_2"))%>%
+  filter(is.na(region))
 ```
-1586 NAs before inserting the UK row into the country dataset, and only 44 after. This is due to the fact that the UK in the country dataset had the aplha_2 value of GB and in the trips dataset it had the country_code UK.
-
 
 #people 
 
@@ -154,7 +162,7 @@ people %>%
   filter(grepl("Master's Degree", education_raw)) %>%
   arrange(desc(followers)) %>%
   head(1) %>%
-  select(-...1)
+  select(-X1)
 
 ```
 To get the results we first filtered in the education_raw category by strings containing "Master's Degree". Afterwards we arranged by followers in descending order, so that the top result will be the person with most followers. Thereafter we write the "head(1)" function which excludes all results not in the top of the list. In the end we use the select function to exclude the ID of the person, because this is not relevant.
