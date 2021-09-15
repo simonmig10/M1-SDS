@@ -1,0 +1,241 @@
+---
+title: "Assignment 1"
+output: html_document
+---
+
+---
+title: "Assignment 1"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+#Before we start
+
+Running libaries 
+
+```{r message = FALSE}
+library(tidyverse)
+
+library(lubridate)
+
+library(magrittr)
+
+```
+
+
+Loading data 
+
+```{r message = FALSE}
+trips= read_csv("https://sds-aau.github.io/SDS-master/M1/data/trips.csv")
+colnames(trips)[1] = "obs"
+
+people= read_csv("https://sds-aau.github.io/SDS-master/M1/data/people.csv")
+colnames(people)[1] = "obs"
+
+country= read_csv("https://sds-aau.github.io/SDS-master/M1/data/countrylist.csv")
+
+```
+
+
+Looking at the data: 
+
+```{r}
+glimpse(trips)
+
+glimpse(people)
+
+glimpse(country)
+```
+
+
+
+##Preprocessing
+
+###a. Trips: transform dates into timestamps (note: in Python, you will have to coerce errors for faulty dates)
+
+```{r warning = FALSE}
+trips %<>%
+  mutate(date_end_time= as.numeric(as.POSIXct(date_end, format="%Y-%m-%d")),
+         date_start_time=as.numeric(as.POSIXct(date_start, format="%Y-%m-%d")))
+trips %>% 
+  select(obs, date_start_time, date_start, date_end_time, date_end)
+
+```
+
+
+###b. Calculate trip duration in days (you can use loops, list comprehensions or map-lambda-functions (python) to create a column that holds the numerical value of the day. You can also use the datetime package.)
+
+```{r}
+trips %<>% 
+  mutate(trip_duration= date_end_time- date_start_time, trip_duration_days= trip_duration/86400)
+
+trips %>%
+  select(obs, trip_duration_days)
+```
+
+
+
+
+###c. Filter extreme (fake?) observations for durations as well as dates - start and end (trips that last 234565 days / are in the 17th or 23rd century) The minimum duration of a trip is 1 day! Hint: use percentiles/quantiles to set boundaries for extreme values - between 1 and 97, calculate and store the boundaries before subsetting. Rhint: Use percent_rank(as.numeric(variable)) to create percentiles
+
+```{r}
+trips %<>%
+  filter(!is.na(date_end_time))%>%
+  filter(trip_duration_days >= 1 & trip_duration_days <= 97, 
+         date_end_time >= quantile(date_end_time, 0.01) &
+           date_end_time <= quantile(date_end_time, 0.97))
+  
+  
+
+```
+
+
+
+###d. Join the countrylist data to the trips data-frame using the countrycode as a key e. [Only for python users ] Set DateTime index as the start date of a trip
+
+```{r}
+
+trips%>%
+  left_join(country, by= c("country_code" = "alpha_2")) %>%
+  count(region)
+
+UK = data.frame("UK", "Europe", "Northern Europe")
+names(UK) = c("alpha_2", "region", "sub_region")
+country = rbind(country, UK)
+
+trips%>%
+  left_join(country, by= c("country_code" = "alpha_2")) %>%
+  count(region)
+
+trips%<>%
+  left_join(country, by= c("country_code" = "alpha_2"))
+
+```
+1586 NAs before inserting the UK row into the country dataset, and only 44 after. This is due to the fact that the UK in the country dataset had the aplha_2 value of GB and in the trips dataset it had the country_code UK.
+
+
+##People 
+
+###a. How many people have a least a “High School” diploma? Hint: For this calculation remove missing value-rows or fill with “False”.
+```{r}
+people %>%
+  drop_na(education_raw) %>%
+  count()
+```
+First we drop the NAs. Thereafter we count the remainging observations as high school is presumed to be the lowest education in the category. From this we see that 451 people have at least a High School diploma.
+
+
+###b. How many “Startup Founders” have attained a “Master’s Degree”? Bonus: compared to people who don’t have a formal higher education (e.g. by using the “False” occurrences)?
+```{r}
+people %>%
+  filter(grepl("Startup Founder", work_raw)) %>%
+  filter(grepl("Master",education_raw)) %>%
+  count()
+
+people %>%
+  filter(grepl("Startup Founder", work_raw)) %>%
+  filter(!grepl("Master",education_raw)) %>%
+  count()
+
+```
+Here we use the grepl command to filter by both the work_raw and education_raw. The grepl lets us filter by strings containing certain text. By doing this we get that 53 startup founders have attained a Master's Degree. By adding an "!" before the second grepl we can reverse the function so that we get all startup founders without a Master's degree. This shows us that 668 startup founders does not have a master's degree.
+
+###c. Who is the person with a Master’s Degree that has the highest number of followers? Bonus: Explore the individual further, what else can you find out?
+```{r}
+people %>%
+  filter(grepl("Master's Degree", education_raw)) %>%
+  arrange(desc(followers)) %>%
+  head(1) %>%
+  select(-obs)
+
+```
+To get the results we first filtered in the education_raw category by strings containing "Master's Degree". Afterwards we arranged by followers in descending order, so that the top result will be the person with most followers. Thereafter we write the "head(1)" function which excludes all results not in the top of the list. In the end we use the select function to exclude the ID of the person, because this is not relevant.
+The result shows us, that the person with the most followers is @levelsio. He has 2182 followers. He follows 353. He is a software Dev, a startup founder and a creative. Furthermore he has a high school diploma, a bachelor's degree and a master's degree.
+
+##Trips
+
+###a. Which country received the highest number of trips? – And which the lowest?
+```{r}
+trips  %>%
+  count(country, sort =TRUE) %>%
+  filter(n %in% c(min(n), max(n)))
+
+```
+To find out which country received the most and fewest trips, we just count the number of times each country shows up in the trips datasets and then filter for the maximum and minimum value. The result shows that the most visited country is the United States with 6539, and 53 country share the price of being the lowest visited destination with one trip. Around thirteen of the countries whom has been visited the lowest amount has only numerical values in the country column, so those could have been dropped, but didnt because they still represent a trip just unclear to where.
+
+###b. Which region received the highest number of trips in 2017? Use the start of trips as a time reference.
+```{r}
+trips %>%
+  drop_na(region) %>%
+  filter(date_start >= "2017-01-01", date_start <= "2017-12-31") %>%
+  count(region, sort = TRUE)
+
+```
+To acces regions we need to join our trips and country datasets, but we already did that earlier and saved is as our new trips dataset, so no need to do that again. Then we drop the trips which has no region becuase they are not of significance to us. Then we filter for trips that started in 2017 and count the number of times each region was visited, and then we end up with, that the most visited region in 2017 was Europe with 4659 trips. 
+
+###c. Which country in “Western Europe” did travelers spent least time? – Provide visualization
+```{r}
+plot_trips = trips %>%
+  drop_na(sub_region, trip_duration_days) %>%
+  filter(sub_region == "Western Europe") %>% 
+  group_by(country) %>% 
+  summarise(total_time = sum(trip_duration_days)) %>% 
+  arrange(desc(total_time)); plot_trips
+
+
+```
+To figure out which country in Western Europe travelers spent the least time we first drop the NAs from both sub_region and trip_duration_days as observations with no values in are of no interest to us. Then we filter for the sub_region Western Europe, group_by country and summarise the total number og days spent in each Western european country. The above results will now be presented visually.
+
+```{r}
+plot_trips %>% 
+  ggplot(aes(x = total_time, y = reorder(country, -total_time), fill= country)) + 
+  geom_col() + scale_fill_manual(values = rainbow(8)) +
+  ggtitle("Total number of days spent in Western European countries") +
+  labs(x = "Number of days", y = "Countries")
+
+```
+The above bar chart show visually the number of days spent in each western european country, where Monaco clearly is where travelers have spent the least amount of time.
+
+###d. Do nomad Startup Founders tend to have shorter or longer trips on average?
+
+```{r}
+trips %>% 
+  left_join(people, by = c("username" = "username")) %>% 
+ filter(grepl("Startup Founder", work_raw)) %>% 
+  summarise(avg_time = mean(trip_duration_days))
+
+trips %>% 
+  left_join(people, by = c("username" = "username")) %>% 
+ filter(!grepl("Startup Founder", work_raw)) %>% 
+  summarise(avg_time = mean(trip_duration_days))
+
+```
+On average every person who is or has been a Startup Founder spend 13.74 days per trip vs. 14.33 days per trip for all other occupations. We are not sure if this is the result you guys wanted, because we had a hard time understanding what we would be comparing the startup founders average trip length to.
+
+###e. visualize over-time median trip duration overall (bonus: and split by world-region) The plot will look weird ^^. PyHint: Resample by week (‘W’) and calculate the size of observations. RHint: Use the floor_date function to reset dates by week.
+
+```{r}
+trips %>%
+  drop_na(region) %>% 
+  mutate(trip_duration_week = trip_duration_days/7) %>%
+  group_by(region) %>% 
+  summarise(median = median(trip_duration_week)) %>% 
+  ggplot(aes(x = region, y = median, fill = region)) + geom_col() +
+  scale_fill_manual(values = rainbow(5))
+  
+```
+So we are not sure what we should use the floor_date function to, instead we just made our trip_duration_days column to trip_duration_week by dividing it with 7. Beforehand we dropped the NAs and then we grouped by region to calculate the median for every region and then we plotted it. This just doesnt visualise it over time, this only visualize the median by region over the entire time period. The assignment doesnt state in which interval to check the overall development in the median, so below we plot the median by region every year in the dataset.
+
+```{r warning = FALSE, message = FALSE}
+trips %>% 
+  mutate(year = format(as.Date(trips$date_start, format="%Y-%m-%d"),"%Y")) %>% 
+  drop_na(region, year) %>% 
+  mutate(trip_duration_week = trip_duration_days/7) %>%
+  group_by(region, year) %>% 
+  summarise(median = median(trip_duration_week)) %>% 
+  ggplot(aes(x = year, y = median, color = region, group = region)) + geom_line(size = 1) + 
+  scale_color_manual(values = rainbow(5))
+
+```
+We do this by making a column representing which year the trip took place, then grouping both by region and year, to get the medians and then plotting them using ggplot. We see that the median changes over time and mostly in the region of Oceania.
