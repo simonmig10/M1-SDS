@@ -24,10 +24,76 @@ pokemon= read_csv("https://sds-aau.github.io/SDS-master/00_data/pokemon.csv")
 
 **Give a brief overview of data, what variables are there, how are the variables scaled and variation of the data columns.**
 
+```{r}
+pokemon %>% head()
+```
+
+```{r}
+pokemon %>% glimpse()
+
+
+
+
+pokemon$Type2 %<>%
+  replace_na("No 2. type")
+
+```
+
+```{r}
+pokemon %>% count(Type1, sort = TRUE)
+
+pokemon %>% count(Type2, sort = TRUE)
+```
+
+
+
+*Character strings*
+We can see the data has 3 character strings "names" which are the names of the pokemons, "type1" which is the main type of the pokemon, and last "type2" which shows some pokemons has a second type, we guess NA's means they only have 1 type. 
+
+
+*Numeric values*
+We can see the first column just counts the pokemons (ID) so we remove this 
+
+```{r}
+pokemon %<>% select(!Number)
+
+glimpse(pokemon)
+
+```
+
+
+```{r}
+pokemon %>%
+  count(Generation)
+```
+We can see Generation is numeric but seems like it shows some kind of categorical variable. 
+
+
+```{r warning=FALSE}
+
+pokemon %<>%
+  drop_na()
+
+pokemon_sd= pokemon %>%
+  select(HitPoints, Attack, Defense, SpecialAttack, SpecialDefense, Speed, Total)
+
+s_deviation=apply(pokemon_sd, 2, sd)
+
+mean=colMeans(pokemon_sd)
+
+pokemon_stats= as.data.frame(s_deviation, row.names = c("sd"))%>%
+  cbind(as.data.frame(mean, row.names = "mean"))%>%
+  print()
+
+
+
+```
+ When we look at the other numerical values we have calculated the standard deviation and the mean, to see if the data is of the same scaling, this shows that Total has a much larger standard deviation and mean. Else the other variables are almost the same. But becasue of the Total variable we should scale the data. 
+
 
 
 **Execute a PCA analysis on all numerical variables in the dataset. Hint: Don’t forget to scale them first. Use 4 components. What is the cumulative explained variance ratio? Hint: I am not sure this terminology and code was introduced during class, but try and look into cumulative explained variance and sklearn(package) and see if you can figure out the code needed.**
-****
+
 
 **Use a different dimensionality reduction method (eg. UMAP/NMF) – do the findings differ?**
 
@@ -41,6 +107,8 @@ pokemon= read_csv("https://sds-aau.github.io/SDS-master/00_data/pokemon.csv")
 
 
 **Perform a cluster analysis on all numerical variables scaled and AFTER dimensionality reduction and visualize the first 2 principal components.**
+
+
 
 **Again, inspect the distribution of the variable “Type 1” across clusters, does it differ from the distribution before dimensionality reduction?**
 
