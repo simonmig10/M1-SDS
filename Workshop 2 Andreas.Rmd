@@ -1,0 +1,12 @@
+---
+title: "Workshop 2 Andreas"
+author: "Andreas Methling"
+date: "15 sep 2021"
+output: pdf_document
+---
+
+```{r}
+library(readr)
+data = read.csv("https://sds-aau.github.io/SDS-master/M1/data/cities.csv")
+```
+
