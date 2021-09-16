@@ -13,6 +13,13 @@ library(tidyverse)
 library(lubridate)
 
 library(magrittr)
+
+library(FactoMineR)
+
+library(factoextra)
+
+library(uwot)
+
 ```
 
 
@@ -38,6 +45,8 @@ pokemon$Type2 %<>%
   replace_na("No 2. type")
 
 ```
+
+
 
 ```{r}
 pokemon %>% count(Type1, sort = TRUE)
@@ -90,12 +99,84 @@ pokemon_stats= as.data.frame(s_deviation, row.names = c("sd"))%>%
 ```
  When we look at the other numerical values we have calculated the standard deviation and the mean, to see if the data is of the same scaling, this shows that Total has a much larger standard deviation and mean. Else the other variables are almost the same. But becasue of the Total variable we should scale the data. 
 
+*logical values*
+
+We can see the Legendary column is a logical variable, which means FALSE observation shows pokemons whom are not legendary, and true for those who are legendary. This variable can not be scaled. 
 
 
 **Execute a PCA analysis on all numerical variables in the dataset. Hint: Don’t forget to scale them first. Use 4 components. What is the cumulative explained variance ratio? Hint: I am not sure this terminology and code was introduced during class, but try and look into cumulative explained variance and sklearn(package) and see if you can figure out the code needed.**
 
+```{r warning=FALSE}
+
+
+res_pca <- pokemon %>%
+  select(!Generation)%>%
+  select_if(is_numeric) %>%
+  PCA(scale.unit = TRUE, graph =FALSE)
+
+
+```
+
+```{r}
+res_pca %>% 
+  fviz_screeplot(addlabels = TRUE, 
+                 ncp = 10, 
+                 ggtheme = theme_gray())
+```
+
+We can see the albow shows the optimal dimension is 2 dimensions. 
+
+```{r}
+res_pca %>%
+  fviz_pca_var(alpha.var = "cos2",
+               col.var = "contrib",
+               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+               repel = TRUE,
+               ggtheme = theme_gray()) 
+```
+
+Let's visualize our observations and the variable-loading together in the space of the first 2 components.
+
+```{r,,fig.width=15,fig.height=10,fig.align='center'}
+res_pca %>%
+  fviz_pca_biplot(alpha.ind = "cos2",
+                  col.ind = "contrib",
+                  gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                  geom = "point", 
+                  ggtheme = theme_gray())
+```
+From the 2 plots we can see that some of the variables are correlated fx. Attack and Total seems to be very much correlated the distance between the lines shows the correlation, We can see that speed and Defence has a very low correlation as the angle is almost 90 degrees. We can also see there are no negative correlation between the variables, as there are no angels above 90 degrees. 
+
+
+```{r}
+res_pca$eig[,3][1:4]
+```
+
+We can see that the cumulative variance at component 4 is 90.05% This means the 4 dimensions explain 90.05% of the variance in the data. 
+
 
 **Use a different dimensionality reduction method (eg. UMAP/NMF) – do the findings differ?**
+
+```{r}
+res_umap <- pokemon %>%
+  select(!Generation)%>%
+  select_if(is_numeric) %>%
+  umap(n_neighbors = 15, 
+       metric = "cosine", 
+       min_dist = 0.01, 
+       scale = TRUE) 
+```
+
+```{r}
+res_umap %>% as_tibble() %>%
+  glimpse()
+```
+```{r}
+res_umap %>%
+  as_tibble() %>%
+  ggplot(aes(x = V1, y = V2, fill = pokemon$Generation)) + 
+  geom_point(shape = 21, alpha = 0.5)
+```
 
 
 **Perform a cluster analysis (KMeans) on all numerical variables (scaled & before PCA). Pick a realistic number of clusters (up to you where the large clusters remain mostly stable).**
