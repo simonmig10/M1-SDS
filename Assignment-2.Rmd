@@ -143,7 +143,9 @@ res_pca %>%
                   col.ind = "contrib",
                   gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
                   geom = "point", 
-                  ggtheme = theme_gray())
+                  ggtheme = theme_gray())+
+  
+                  
 ```
 From the 2 plots we can see that some of the variables are correlated fx. Attack and Total seems to be very much correlated the distance between the lines shows the correlation, We can see that speed and Defence has a very low correlation as the angle is almost 90 degrees. We can also see there are no negative correlation between the variables, as there are no angels above 90 degrees. 
 
@@ -172,24 +174,161 @@ res_umap %>% as_tibble() %>%
   glimpse()
 ```
 ```{r}
+
 res_umap %>%
   as_tibble() %>%
   ggplot(aes(x = V1, y = V2, fill = pokemon$Generation)) + 
   geom_point(shape = 21, alpha = 0.5)
+
 ```
+The conclusion is that We make a conclusion  later
 
 
 **Perform a cluster analysis (KMeans) on all numerical variables (scaled & before PCA). Pick a realistic number of clusters (up to you where the large clusters remain mostly stable).**
 
+We create 
+
+```{r}
+
+pokemon %>%
+  select(!Generation)%>%
+  select_if(is_numeric) %>% 
+  scale() %>%
+  fviz_nbclust(kmeans, method = "wss")  
+
+#manuelt
+
+pokemon_nr=pokemon%>%
+  select(!Generation)%>%
+  select_if(is_numeric)
+
+wss <- 0
+for (i in 1:7) {
+  km.out <- kmeans(pokemon_nr, centers = i, nstart = 20)
+  # Save total within sum of squares to wss variable
+  wss[i] <- km.out$tot.withinss
+}
+
+plot(1:7, wss, type = "b", 
+     xlab = "Number of Clusters", 
+     ylab = "Within groups sum of squares")
+
+
+
+```
+
+We can see from both plots that it looks like we should use 2 clusters.  
+
+
+```{r}
+res_km <- pokemon_nr %>% 
+  select_if(is_numeric) %>%
+  scale() %>% 
+  kmeans(centers = 3, nstart = 20)  
+
+```
+```{r}
+res_km 
+```
+
+```{r,,fig.width=15,fig.height=10,fig.align='center'}
+res_km %>% 
+  fviz_cluster(data = pokemon_nr %>% select_if(is_numeric) ,
+               ggtheme = theme_gray())  
+```
+
+
+
+
 
 **Visualize the first 2 principal components and color the datapoints by cluster.**
+
+```{r}
+pokemon_nr[,"pca1"] <- res_pca$ind$coord[,1]
+pokemon_nr[,"pca2"] <- res_pca$ind$coord[,2]
+
+glimpse(pokemon_nr)
+
+pokemon_cluster=pokemon
+pokemon_cluster_nr=pokemon_nr
+
+pokemon_cluster[,"cluster"] <- res_km$cluster
+pokemon_cluster_nr[,"cluster"] <- res_km$cluster
+
+pokemon_cluster_nr %>%
+  ggplot(aes(x=pca1, y=pca2, color=factor(cluster)))+
+  geom_point()
+
+```
+
+
 
 **Inspect the distribution of the variable Type1 across clusters. Does the algorithm separate the different types of pokemon?**
 
 
+```{r}
+
+type1_table=table(pokemon_cluster$cluster, pokemon_cluster$Type1)
+
+```
+We can see that the algorithm do not fully separate the different types of pokemons into the 3 clusters.
+
 **Perform a cluster analysis on all numerical variables scaled and AFTER dimensionality reduction and visualize the first 2 principal components.**
 
 
+```{r}
+
+pokemon_pca= pokemon_nr%>%
+  select(pca1, pca2)
+
+pokemon_pca %>%
+  scale() %>%
+  fviz_nbclust(kmeans, method = "wss")
+```
+
+
+```{r}
+
+res_km_pca <- pokemon_pca %>% 
+  scale() %>% 
+  kmeans(centers = 3, nstart = 20)  
+```
+
+```{r}
+res_km_pca 
+```
+
+```{r,,fig.width=15,fig.height=10,fig.align='center'}
+res_km_pca %>% 
+  fviz_cluster(data = pokemon_pca,
+               ggtheme = theme_gray())  
+```
+```{r}
+
+pokemon_cluster_pca= pokemon
+pokemon_cluster_nr_pca= pokemon_nr
+
+pokemon_cluster_pca[,"cluster_pca"] <- res_km_pca$cluster
+pokemon_cluster_nr_pca[,"cluster_pca"] <- res_km_pca$cluster
+
+pokemon_cluster_nr_pca %>%
+  ggplot(aes(x=pca1, y=pca2, color=factor(cluster_pca)))+
+  geom_point()
+
+```
 
 **Again, inspect the distribution of the variable “Type 1” across clusters, does it differ from the distribution before dimensionality reduction?**
+
+```{r}
+
+table(pokemon_cluster_pca$cluster_pca, pokemon_cluster_pca$Type1)
+
+```
+
+```{r}
+type1_table
+```
+It seems like the clusters are categorized in relation to attributes or abilities, and not so much the type of the pokemon. 
+
+
 
