@@ -143,7 +143,7 @@ res_pca %>%
                   col.ind = "contrib",
                   gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
                   geom = "point", 
-                  ggtheme = theme_gray())+
+                  ggtheme = theme_gray())
   
                   
 ```
@@ -322,6 +322,8 @@ pokemon_cluster_nr_pca %>%
 ```{r}
 
 table(pokemon_cluster_pca$cluster_pca, pokemon_cluster_pca$Type1)
+
+
 
 ```
 
