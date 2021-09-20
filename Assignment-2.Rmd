@@ -196,7 +196,7 @@ It looks like UMAP are separating the legendary pokemon from the normal pokemon 
 
 **Perform a cluster analysis (KMeans) on all numerical variables (scaled & before PCA). Pick a realistic number of clusters (up to you where the large clusters remain mostly stable).**
 
-We start by seelcting all our numerical variables except Generations and run a Kmean cluster analysis.
+We start by selecting all our numerical variables except Generations and run a Kmean cluster analysis.
 
 ```{r, warning = FALSE}
 
@@ -206,15 +206,19 @@ pokemon %>%
   scale() %>%
   fviz_nbclust(kmeans, method = "wss")  
 
+
+
+
 ```
 
 We can see from the plot that it looks like we should use two clusters, because this is where we see the elbow.
 
-```{r}
-res_km <- pokemon_nr %>% 
+```{r, warning=}
+res_km <- pokemon %>% 
+  select(!Generation) %>% 
   select_if(is_numeric) %>%
   scale() %>% 
-  kmeans(centers = 3, nstart = 20)  
+  kmeans(centers = 2, nstart = 20)  
 
 ```
 
@@ -229,6 +233,12 @@ res_km %>%
 ```
 
 **Visualize the first 2 principal components and color the datapoints by cluster.**
+
+```{r}
+pokemon_nr = pokemon %>% 
+  select(!Generation) %>% 
+  select(is.numeric) 
+```
 
 ```{r}
 pokemon_nr[,"pca1"] <- res_pca$ind$coord[,1]
