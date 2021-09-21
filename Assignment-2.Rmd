@@ -199,26 +199,25 @@ It looks like UMAP are separating the legendary pokemon from the normal pokemon 
 We start by selecting all our numerical variables except Generations and run a Kmean cluster analysis.
 
 ```{r, warning = FALSE}
-
 pokemon %>%
   select(!Generation)%>%
   select_if(is_numeric) %>% 
   scale() %>%
   fviz_nbclust(kmeans, method = "wss")  
-
-
-
-
 ```
 
 We can see from the plot that it looks like we should use two clusters, because this is where we see the elbow.
 
-```{r, warning=}
+```{r, warning= FALSE}
 res_km <- pokemon %>% 
   select(!Generation) %>% 
   select_if(is_numeric) %>%
   scale() %>% 
   kmeans(centers = 2, nstart = 20)  
+
+pokemon_nr = pokemon %>%
+  select(!Generation)%>%
+  select_if(is_numeric)
 
 ```
 
@@ -232,7 +231,11 @@ res_km %>%
                ggtheme = theme_gray())  
 ```
 
+After using KMEANS on the scaled and not dimentionnaly reduced data, we get two clusters. 
+
 **Visualize the first 2 principal components and color the datapoints by cluster.**
+
+
 
 ```{r}
 pokemon_nr = pokemon %>% 
@@ -258,17 +261,35 @@ pokemon_cluster_nr %>%
 
 ```
 
+
+
 **Inspect the distribution of the variable Type1 across clusters. Does the algorithm separate the different types of pokemon?**
 
 ```{r}
 
 type1_table=table(pokemon_cluster$cluster, pokemon_cluster$Type1)
 
+type1_table
+
 ```
 
-We can see that the algorithm do not fully separate the different types of pokemons into the 3 clusters.
+We can see that the algorithm does not fully separate the different types of pokemons into the 2 clusters. As many of the types are equaly split between the two clusters. 
+
+
+```{r}
+pokemon_cluster_nr %>%
+  select_if(is_numeric) %>%
+  group_by(cluster) %>%
+  mutate(n = n()) %>%
+  summarise_all(funs(mean)) %>%
+  pivot_longer(-cluster) %>%
+  pivot_wider(names_from = cluster, values_from = value)
+```
+We can see the two clusters are mainly seperatet by overall attribute and not the type of the pokemon. (by looking at the mean of each attribute in the 2 clusters)
 
 **Perform a cluster analysis on all numerical variables scaled and AFTER dimensionality reduction and visualize the first 2 principal components.**
+
+We do the same steps as above now only using the two columns showing the 2 dimensions from the PCA analysis. 
 
 ```{r}
 
@@ -279,7 +300,7 @@ pokemon_pca %>%
   scale() %>%
   fviz_nbclust(kmeans, method = "wss")
 ```
-
+We can now see the elbow is formed at 3 clusters. 
 ```{r}
 
 res_km_pca <- pokemon_pca %>% 
@@ -296,7 +317,7 @@ res_km_pca %>%
   fviz_cluster(data = pokemon_pca,
                ggtheme = theme_gray())  
 ```
-
+We can see it has split the observations into 3 clusters very nicely
 ```{r}
 
 pokemon_cluster_pca= pokemon
@@ -325,4 +346,4 @@ table(pokemon_cluster_pca$cluster_pca, pokemon_cluster_pca$Type1)
 type1_table
 ```
 
-It seems like the clusters are categorized in relation to attributes or abilities, and not so much the type of the pokemon.
+It seems like the clusters are categorized in relation to attributes or abilities, and not so much the type of the pokemon. As was also the conclusion using the not dimensionalised data. 
