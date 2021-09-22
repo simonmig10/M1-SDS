@@ -15,7 +15,7 @@ library(magrittr)
 ```
 
 
-
+# load data
 
 ```{r}
 data <- read_csv("startup data.csv", 
@@ -23,6 +23,8 @@ col_types = cols(founded_at = col_date(format = "%m/%d/%Y"),
 first_funding_at = col_date(format = "%m/%d/%Y"), 
 last_funding_at = col_date(format = "%m/%d/%Y")))
 ```
+
+# data celaning
 
 We take a quick look at the data
 ```{r}
@@ -79,5 +81,7 @@ skim(data)
 
 ```
 
+# EDA
 
+en masse plots
 
