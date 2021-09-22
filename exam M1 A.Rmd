@@ -12,11 +12,6 @@ output: html_document
 library(tidyverse)
 data <- read_csv("startup data.csv")
 glimpse(data)
-
-```
-```{r}
-data %>%
-  parse_date(first_funding_at)
 ```
 
 
