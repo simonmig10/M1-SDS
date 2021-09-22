@@ -5,6 +5,9 @@ date: "22/9/2021"
 output: html_document
 ---
 
+
+
+
 ```{r}
 library(readr)
 startup_data <- read_csv("startup data.csv")
@@ -14,4 +17,5 @@ View(startup_data)
 glimpse(startup_data)
 
 ```
+
 
