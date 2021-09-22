@@ -1,0 +1,24 @@
+---
+title: "Workshop 3"
+author: "Andreas Methling"
+date: "21/9/2021"
+output: pdf_document
+---
+
+```{r}
+library(tidyverse)
+library(magrittr)
+library(skimr)
+
+data = read_csv("http://data.insideairbnb.com/denmark/hovedstaden/copenhagen/2021-07-20/data/listings.csv.gz")
+
+cal = read_csv("http://data.insideairbnb.com/denmark/hovedstaden/copenhagen/2021-07-20/data/calendar.csv.gz")
+
+rew = read_csv("http://data.insideairbnb.com/denmark/hovedstaden/copenhagen/2021-07-20/data/reviews.csv.gz")
+```
+
+```{r}
+data %<>% 
+  mutate(price = parse_number(price))
+```
+
