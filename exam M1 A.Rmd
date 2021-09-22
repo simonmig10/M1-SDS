@@ -1,0 +1,22 @@
+---
+title: "Exam"
+author: "Simon"
+date: "22/9/2021"
+output: html_document
+---
+
+
+
+
+```{r}
+library(tidyverse)
+data <- read_csv("startup data.csv")
+glimpse(data)
+
+```
+```{r}
+data %>%
+  parse_date(first_funding_at)
+```
+
+
