@@ -1,11 +1,13 @@
 ---
 title: "R Notebook"
 output:
-  pdf_document: default
-  html_notebook: default
+    pdf_document:
+        latex_engine: xelatex
+ 
+  
 ---
 
-\#Before we start
+# Before we start
 
 Running libaries
 
@@ -21,24 +23,35 @@ library(FactoMineR)
 library(factoextra)
 
 library(uwot)
+
+library(skimr)
+
+library(GGally)
 ```
 
 ```{r, message = FALSE}
 pokemon= read_csv("https://sds-aau.github.io/SDS-master/00_data/pokemon.csv")
 ```
 
-\#Tasks
+# Tasks
 
 **Give a brief overview of data, what variables are there, how are the variables scaled and variation of the data columns.**
 
-We overview the data and see that a pokemons 2. type often is NA so we replace that with "No 2. type" because we dont wanna lose these observations when we remove lines with NAs.
+We start by looking at the data with the head function
 
 ```{r}
 pokemon %>% head()
 ```
 
+We can also skim the data and see we got 3 categrical, 1 logical and 8 numeric variables. 
+
 ```{r}
-pokemon %>% glimpse()
+skim(pokemon)
+```
+
+We overview the data and see that a pokemons 2. type often is NA so we replace that with "No 2. type" because we dont wanna lose these observations when we remove lines with NAs.
+
+```{r}
 
 pokemon$Type2 %<>%
   replace_na("No 2. type")
@@ -50,8 +63,9 @@ pokemon %>% count(Type1, sort = TRUE)
 
 pokemon %>% count(Type2, sort = TRUE)
 ```
+When we talk about scaling variables we need to only focus on the variables we are able to scale. 
 
-*Character strings:* We can see the data has 3 character strings "names" which are the names of the pokemons, "type1" which is the main type of the pokemon, and last "type2" which shows some pokemons has a second type, where NA's means they only have one type.
+*Character strings:* We can see the data has 3 character strings "names" which are the names of the pokemons, "type1" which is the main type of the pokemon, and last "type2" which shows some pokemons has a second type, where NA's means they only have one type. These columns wont need scaling. 
 
 *Logical values:* We can see the Legendary column is a logical variable, which means FALSE observation shows pokemons whom are not legendary, and true for those who are legendary. This variable can not be scaled.
 
@@ -64,7 +78,7 @@ glimpse(pokemon)
 
 ```
 
-We can see Generation is numeric and show which generation of pokemon game each pokemon is from.
+We can see Generation is numeric and show which generation of pokemon game each pokemon is from. So we will also exclude this one as it looks more like an categrical variable. 
 
 ```{r}
 pokemon %>%
@@ -98,8 +112,7 @@ The above shows that Total has a much larger standard deviation and mean. Else t
 
 We can visually show the variables correlation with each other and if there is any differences between legendary and none legendary pokemons.
 
-```{r, fig.height=12, fig.width=12, warning=FALSE}
-library(GGally)
+```{r, fig.height=12, fig.width=12, message=FALSE}
 pokemon %>% 
   select(-Name, -Type1, -Type2) %>%
   ggpairs(legend = 1,
@@ -110,9 +123,11 @@ pokemon %>%
 
 Generation looks uncorrelated with the remaining variables and Legendaries seems stronger in pretty much every stat category.
 
+We now have an overwiev over the data, and are able to see which variables it would make since to include in a dimensionality reduction and if it would be a good idea to scale them. 
+
 **Execute a PCA analysis on all numerical variables in the dataset. Hint: Don't forget to scale them first. Use 4 components. What is the cumulative explained variance ratio? Hint: I am not sure this terminology and code was introduced during class, but try and look into cumulative explained variance and sklearn(package) and see if you can figure out the code needed.**
 
-We run a PCA on the pokemon dataset and scale it. Then we make a scree plot to pick number of dimensions to use.
+We run a PCA on the pokemon dataset with scale equal to TRUE because of the "total" column. Then we make a scree plot to pick number of dimensions to use. We remove Generation and the non numerical variables. 
 
 ```{r warning=FALSE}
 
@@ -156,15 +171,15 @@ res_pca %>%
 
 From the two plots we can see that some of the variables are correlated eg. Attack and Total seems to be very much correlated the distance between the lines shows the correlation, We can see that speed and Defense has a very low correlation as the angle is almost 90 degrees. We can also see there are no negative correlation between the variables, as there are no angels above 90 degrees. The x-axis seems to divide the attributes into offensive above the axis and defensive below the axis. By separating the data into groups according to their legendary status is seems like the legendary pokemons are located more to the right of the plot which indicates higher levels of attributes.
 
-To answer the latter of the question we simply extract the cumulative variance calculated in the pca analysis.
+To answer the latter of the question regarding the cumulative variance using 4 components we simply extract the cumulative variance calculated in the pca analysis.
 
 ```{r}
 res_pca$eig[,3][1:4]
 ```
 
-We can see that the cumulative variance at component 4 is 90.05% This means the 4 dimensions explain 90.05% of the variance in the data.
+We can see that the cumulative variance at component 4 is 90.06% This means the 4 dimensions explain 90.06% of the variance in the data.
 
-**Use a different dimensionality reduction method (eg. UMAP/NMF) -- do the findings differ?**
+**Use a different dimensionality reduction method (eg. UMAP/NMF)  do the findings differ?**
 
 We use UMAP which is a different dimensionality reduction method. UMAP is more optimal when dealing with two dimensions.
 
@@ -178,7 +193,7 @@ res_umap <- pokemon %>%
        scale = TRUE) 
 ```
 
-```{r}
+```{r warning=FALSE}
 res_umap %>% as_tibble() %>%
   glimpse()
 ```
@@ -192,11 +207,11 @@ res_umap %>%
 
 ```
 
-It looks like UMAP are separating the legendary pokemon from the normal pokemon a bit better then the PCA analysis by clustering them closer together.
+It looks like UMAP are separating the legendary pokemon from the normal pokemon a bit better then the PCA analysis by clustering them closer together (the blue observations).
 
 **Perform a cluster analysis (KMeans) on all numerical variables (scaled & before PCA). Pick a realistic number of clusters (up to you where the large clusters remain mostly stable).**
 
-We start by selecting all our numerical variables except Generations and run a Kmean cluster analysis.
+We start by selecting all our numerical variables except Generations (as we clasified this as categorical) and run a Kmean cluster analysis.
 
 ```{r, warning = FALSE}
 pokemon %>%
@@ -207,6 +222,7 @@ pokemon %>%
 ```
 
 We can see from the plot that it looks like we should use two clusters, because this is where we see the elbow.
+We then use the kmeans function to seperate the data into two clusters. 
 
 ```{r, warning= FALSE}
 res_km <- pokemon %>% 
@@ -215,40 +231,41 @@ res_km <- pokemon %>%
   scale() %>% 
   kmeans(centers = 2, nstart = 20)  
 
-pokemon_nr = pokemon %>%
-  select(!Generation)%>%
-  select_if(is_numeric)
-
 ```
+
 
 ```{r}
 res_km 
 ```
-
-```{r,,fig.width=15,fig.height=10,fig.align='center'}
-res_km %>% 
-  fviz_cluster(data = pokemon_nr %>% select_if(is_numeric) ,
-               ggtheme = theme_gray())  
-```
-
-After using KMEANS on the scaled and not dimentionnaly reduced data, we get two clusters. 
-
-**Visualize the first 2 principal components and color the datapoints by cluster.**
-
-
-
+As we are gonna use some of the categorical variables later we will now create a new variable called pokemon_nr only including numeric variables (exc. Generation)
 ```{r}
 pokemon_nr = pokemon %>% 
   select(!Generation) %>% 
   select(is.numeric) 
 ```
 
+```{r,,fig.width=15,fig.height=10,fig.align='center', warning=FALSE}
+res_km %>% 
+  fviz_cluster(data = pokemon_nr %>% select_if(is_numeric) ,
+               ggtheme = theme_gray())  
+```
+
+After using KMEANS on the scaled and not dimentionaly reduced data, we get two clusters which are not overlapping and looks nice.
+
+**Visualize the first 2 principal components and color the datapoints by cluster.**
+
+We add the PCA columns to the dataset
+
 ```{r}
 pokemon_nr[,"pca1"] <- res_pca$ind$coord[,1]
 pokemon_nr[,"pca2"] <- res_pca$ind$coord[,2]
 
 glimpse(pokemon_nr)
+```
 
+To still keep the normal datasets we create two new dataset called clusters and add the cluster notation (1 or 2) to the observations. 
+
+```{r}
 pokemon_cluster=pokemon
 pokemon_cluster_nr=pokemon_nr
 
@@ -260,7 +277,7 @@ pokemon_cluster_nr %>%
   geom_point()
 
 ```
-
+This looks very much like the same plot from before. 
 
 
 **Inspect the distribution of the variable Type1 across clusters. Does the algorithm separate the different types of pokemon?**
@@ -273,10 +290,9 @@ type1_table
 
 ```
 
-We can see that the algorithm does not fully separate the different types of pokemons into the 2 clusters. As many of the types are equaly split between the two clusters. 
+We can see that the algorithm does not fully separate the different types of pokemons into the 2 clusters. As many of the types are equaly split between the two clusters.
 
-
-```{r}
+```{r , warning=FALSE}
 pokemon_cluster_nr %>%
   select_if(is_numeric) %>%
   group_by(cluster) %>%
@@ -285,11 +301,12 @@ pokemon_cluster_nr %>%
   pivot_longer(-cluster) %>%
   pivot_wider(names_from = cluster, values_from = value)
 ```
-We can see the two clusters are mainly seperatet by overall attribute and not the type of the pokemon. (by looking at the mean of each attribute in the 2 clusters)
+
+We can see the two clusters are mainly seperatet by overall attribute and not the type of the pokemon. (we can note this by looking at the mean of each attribute in the 2 clusters)
 
 **Perform a cluster analysis on all numerical variables scaled and AFTER dimensionality reduction and visualize the first 2 principal components.**
 
-We do the same steps as above now only using the two columns showing the 2 dimensions from the PCA analysis. 
+We have visualized the PCA analysis in the question above using two dimensions. And will now use the same steps in the above question uising K-means now only using the two columns showing the 2 dimensions from the PCA analysis.
 
 ```{r}
 
@@ -300,7 +317,9 @@ pokemon_pca %>%
   scale() %>%
   fviz_nbclust(kmeans, method = "wss")
 ```
-We can now see the elbow is formed at 3 clusters. 
+
+We can now see the elbow is formed at 3 clusters, so we use 3.
+
 ```{r}
 
 res_km_pca <- pokemon_pca %>% 
@@ -317,7 +336,9 @@ res_km_pca %>%
   fviz_cluster(data = pokemon_pca,
                ggtheme = theme_gray())  
 ```
-We can see it has split the observations into 3 clusters very nicely
+
+We can see it has split the observations into 3 clusters very nicely. We assign the cluster values to the observations
+
 ```{r}
 
 pokemon_cluster_pca= pokemon
@@ -331,8 +352,9 @@ pokemon_cluster_nr_pca %>%
   geom_point()
 
 ```
+Again the plot looks exactly the same. 
 
-**Again, inspect the distribution of the variable "Type 1" across clusters, does it differ from the distribution before dimensionality reduction?**
+**Again, inspect the distribution of the variable Type 1 across clusters, does it differ from the distribution before dimensionality reduction?**
 
 ```{r}
 
@@ -346,4 +368,4 @@ table(pokemon_cluster_pca$cluster_pca, pokemon_cluster_pca$Type1)
 type1_table
 ```
 
-It seems like the clusters are categorized in relation to attributes or abilities, and not so much the type of the pokemon. As was also the conclusion using the not dimensionalised data. 
+It seems like the clusters are categorized in relation to attributes or abilities, and not so much the type of the pokemon. As was also the conclusion using the not dimensionalised data.
