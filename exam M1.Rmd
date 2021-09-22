@@ -9,12 +9,20 @@ output: html_document
 
 
 ```{r}
+library(tidyverse)
 library(readr)
 startup_data <- read_csv("startup data.csv")
 View(startup_data)
 
-
 glimpse(startup_data)
+
+
+
+```
+
+
+```{r}
+
 
 ```
 
