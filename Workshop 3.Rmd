@@ -18,7 +18,21 @@ rew = read_csv("http://data.insideairbnb.com/denmark/hovedstaden/copenhagen/2021
 ```
 
 ```{r}
+glimpse(data)
+```
+
+
+```{r}
+data %<>%
+  select(review_scores_rating, neighbourhood_cleansed, accommodates, room_type, price, number_of_reviews)
+
 data %<>% 
-  mutate(price = parse_number(price))
+  mutate(price = parse_number(price)) %>%
+  drop_na(price) %>% 
+  filter(percent_rank(price)<0.95)
+```
+
+```{r}
+library(tidymodels)
 ```
 
