@@ -342,7 +342,6 @@ data_test <- data_split %>% testing()
 
 ### Preprocessing recipe
 
-Tror den sletter alle categoriske variable ved ikk om der skal laves en step_dummy for categroical?
 
 ```{r}
 
@@ -519,6 +518,8 @@ pred_collected %>% head()
 ```
 
 
+
+
 ```{r}
 pred_collected %>%
   group_by(model) %>%
@@ -533,6 +534,8 @@ pred_collected %>%
   bal_accuracy(truth = truth, estimate = .pred) %>%
   select(model, .estimate) %>%
   arrange(desc(.estimate))
+
+
 ```
 
 Surprisingly, here the less complex model seems to hve the edge!
@@ -560,10 +563,80 @@ fit_last_dt %>%
 ```
 
 
+
 ```{r}
 fit_xg %>%
   pull_workflow_fit() %>%
   vip::vip(num_features = 20)
+```
+
+#### model on test data
+
+
+```{r}
+pred_collected_t <- tibble(
+  truth = data_test %>% pull(y) %>% as.factor(),
+  #base = mean(truth),
+  lg = fit_lg %>% predict(new_data = data_test) %>% pull(.pred_class),
+  dt = fit_dt %>% predict(new_data = data_test) %>% pull(.pred_class),
+  xg = fit_xg %>% predict(new_data = data_test) %>% pull(.pred_class),
+  ) %>% 
+  pivot_longer(cols = -truth,
+               names_to = 'model',
+               values_to = '.pred')
+```
+
+
+```{r}
+
+#Logistic regression
+
+pred_lg=pred_collected_t %>%
+  filter(model== "lg")%>%
+  pull(.pred)
+
+truth_lg=pred_collected_t %>%
+  filter(model== "lg")%>%
+  pull(truth)
+
+caret::confusionMatrix(data = pred_lg, reference= truth_lg )
+
+#Decision tree
+
+pred_dt=pred_collected_t %>%
+  filter(model== "dt")%>%
+  pull(.pred)
+
+truth_dt=pred_collected_t %>%
+  filter(model== "dt")%>%
+  pull(truth)
+
+caret::confusionMatrix(data = pred_dt, reference= truth_dt )
+
+
+#XG boost
+
+pred_xg=pred_collected_t %>%
+  filter(model== "xg")%>%
+  pull(.pred)
+
+truth_xg=pred_collected_t %>%
+  filter(model== "xg")%>%
+  pull(truth)
+
+caret::confusionMatrix(data = pred_xg, reference= truth_xg )
+
+```
+
+
+```{r}
+lr_auc <- 
+  lr_res %>% 
+  collect_predictions(parameters = lr_best) %>% 
+  roc_curve(children, .pred_children) %>% 
+  mutate(model = "Logistic Regression")
+
+autoplot(lr_auc)
 ```
 
 
