@@ -206,7 +206,7 @@ ggtheme = theme_gray())
 
 ```
 
-UMAP
+## UMAP
 ```{r}
 res_umap <- pca_data  %>%
 umap(n_neighbors = 15,
@@ -221,5 +221,67 @@ as_tibble() %>%
 ggplot(aes(x = V1, y = V2, fill = data$active)) +
 geom_point(shape = 21, alpha = 0.5)
 ```
+## Clustering
+
+```{r}
+pca_data %>%
+scale() %>%
+fviz_nbclust(kmeans, method = "wss")
+```
+Seems like the optimal number of clusters is somewhere around 3 or 4 clusters, so we try both
+
+```{r}
+res_km3 <- pca_data %>%
+scale() %>%
+kmeans(centers = 3, nstart = 20)
+
+res_km4 <- pca_data %>%
+scale() %>%
+kmeans(centers = 4, nstart = 20)
+```
+
+```{r}
+res_km
+```
+
+```{r}
+par(mfrow=c(2,1))
+res_km3 %>%
+fviz_cluster(data = pca_data ,
+ggtheme = theme_gray())
+
+res_km4 %>%
+fviz_cluster(data = pca_data ,
+ggtheme = theme_gray())
+```
+
+```{r}
+data[,"cluster3"] <- res_km3$cluster
+data[,"cluster4"] <- res_km4$cluster
+table(data$cluster4, data$category_code)
+```
+
+```{r}
+data[,"pca1"] <- res_pca$ind$coord[,1]
+data[,"pca2"] <- res_pca$ind$coord[,2]
+```
+
+```{r}
+data %>%
+  group_by(cluster4) %>%
+  summarise(pca1 = pca1 %>% mean(),
+            pca2 = pca2 %>% mean())
+```
+
+```{r}
+par(mfrow=c(2,1))
+data %>%
+ggplot(aes(x=pca1, y=pca2, color=factor(cluster3)))+
+geom_point()
+data %>%
+ggplot(aes(x=pca1, y=pca2, color=factor(cluster4)))+
+geom_point()
+```
+
 
 
