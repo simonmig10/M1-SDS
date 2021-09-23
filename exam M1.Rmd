@@ -28,6 +28,8 @@ library(glmnet)
 library(tidymodels)
 
 library(skimr)
+
+library(VIM)
 ```
 
 
@@ -44,42 +46,102 @@ last_funding_at = col_date(format = "%m/%d/%Y")))
 
 We take a quick look at the data
 ```{r}
-glimpse(data)
+skim(data)
 ```
 
 
-We start by removing columns we dont know what is as they are not described when loading the dataset.
-Also some of the columns show the same thing, 
+We start by removing columns there are undefined when loading the dataset and columns which show the same things. We also remove variables like longtitude and latitude, which could be fun to work with later, but doesnt seem to bring much insight to the ongoing analysis. 
 
 ```{r}
 
 data %<>%
-  select(!c(`Unnamed: 0`, `Unnamed: 6`, state_code.1, object_id, avg_participants))
-
-glimpse(data)
+  select(!c(`Unnamed: 0`, `Unnamed: 6`, state_code.1, object_id, avg_participants, has_roundA, has_roundB, has_roundC, has_roundD, zip_code, id, city, name, latitude, longitude, labels))
 
 ```
 
-To look how wholesome the data is we skim the data
+The data contains 33 numerical variables after the first cleaning, but 22 of those are dummy variables, which are variables we later on could try and see if our clusters are separated by. But as over main objective is to try and separate by the status column "closed or "acquired" we will now take a look an see, which variables seems to be correlated with the status column, starting with the jobtype related dummies, the state related dummies and lastly the three remaining dummies.
 
-```{r}
+```{r, warning=FALSE}
+jobs = data %>% 
+  select(is_software, is_web, is_mobile, is_enterprise, is_advertising, is_gamesvideo, is_ecommerce, is_biotech, is_consulting, is_othercategory, status)
 
-skim(data)
+state = data %>% 
+  select(is_CA, is_TX, is_MA, is_NY, is_otherstate, status)
+
+dummies = data %>%
+  select(is_top500, has_angel, has_VC, status)
+
+par(mfrow=c(1,3))
+jobs %>%
+  select(status, is_numeric) %>%
+  gather(variable, value, -status) %>%
+  ggplot(aes(y = as.factor(variable), 
+             fill =  as.factor(status), 
+             x = percent_rank(value)) ) +
+  ggridges::geom_density_ridges(alpha = 0.75)
+
+state %>%
+  select(status, is_numeric) %>%
+  gather(variable, value, -status) %>%
+  ggplot(aes(y = as.factor(variable), 
+             fill =  as.factor(status), 
+             x = percent_rank(value)) ) +
+  ggridges::geom_density_ridges(alpha = 0.75)
+
+dummies %>%
+  select(status, is_numeric) %>%
+  gather(variable, value, -status) %>%
+  ggplot(aes(y = as.factor(variable), 
+             fill =  as.factor(status), 
+             x = percent_rank(value)) ) +
+  ggridges::geom_density_ridges(alpha = 0.75)
 
 ```
 
-```{r}
+The plot of the job type related dummies shows, that there is almost no differences in how many firm closes and how many who becomes acquired according to job type.
+  Looking at the state related dummies, the plot shows that a bit more firms from New York, Texas and California are being acquired than from the rest of the united states, which could indicate that they could be useful variables to use in our analysis. But you could also say, that the differences aren't big which would make them less influential in the analysis.
+   Lastly in the plot of the three remaining dummy variables it is clear to see that whether or not the firm has been a top 500 upcoming firm substantially change the chance of closing or not. Whether they have VC or angel investor doesn't seem to influence the outcome in a big way. 
 
+Because of the above we drop the state and job variables plus the VC and angel dummies, but we keep is_top200 and then we skim the data again.
+
+```{r}
 data %<>%
-  mutate(closed_at= replace_na(closed_at, "still going"))
+  select(-c(is_CA, is_TX, is_MA, is_NY, is_otherstate, is_software, is_web, is_mobile, is_enterprise, is_advertising, is_gamesvideo, is_ecommerce, is_biotech, is_consulting, is_othercategory, state_code, category_code, has_angel, has_VC))
 
-```
-
-
-```{r}
 skim(data)
+
+```
+We still have 8 numerical variables and 3 date variables we haven't taken a closer look at so that is what we gonna do now.
+
+```{r, warning=FALSE}
+
+data %>%
+  select(status, is_numeric, !is_top500) %>%
+  gather(variable, value, -status, -is_top500) %>%
+  ggplot(aes(y = as.factor(variable), 
+             fill =  as.factor(status), 
+             x = percent_rank(value)) ) +
+  ggridges::geom_density_ridges(alpha = 0.75)
+
 ```
 
+The above plot shows, that relationships, milestones, funding_total_usd, funding_rounds, closed at, both first and last milestone_year and last_funding_year seems to impact whether or not a firm gets acquired or not. 
+    Closed_at will not be used because it contains almost 600 missing observations which is close to 66% of all observations. Founded at will not be used either simply because there doesnt seem to be that big of a difference in the density plots. And using both first and last milestone_year would maybe be irrelevant because they somehow nearly show the same thing. so we drop them. First and last funding_at doesn't show any significance either, so those also gets dropped.
+    
+```{r}
+data%<>%
+  select(!c(age_last_milestone_year, closed_at, age_first_funding_year,founded_at, first_funding_at, last_funding_at))
+```
+
+Now we are left with only our status variable and our 7 numerical variables of interest. Now we check for missing values in our remaning variables.
+
+```{r, fig.height=7, fig.width=9}
+data %>%
+  select(everything()) %>%
+  summarise_all(funs(sum(is.na(.))))
+```
+
+The above states that the age_first_milestone_year has 152 missing values. THe problem with this variable is, that if we remove those rows, we lose 16.4% of our observations, and we cant just replace the NA's with something else like zero, because that would just manipulate our data. So the solution we have come up with is to make them into intervals and then just pick one of the intervals to be used in our analysis. 
 
 ```{r}
 
@@ -95,12 +157,16 @@ data %<>%
   mutate("is_6<" = as.numeric(age_first_milestone_year == "over 6")) %>% 
   mutate("is_no_milestone" = as.numeric(age_first_milestone_year == "no milestone"))
 
-data %<>%    mutate(state_code = ifelse(data$state_code %in% c("CA", "NY", "MA", "TX"), data$state_code, "other")) 
-data %<>%    mutate(category_code = ifelse(data$category_code %in% c("software", "web", "mobile", "enterprise", "advertising", "gamesvideo", "ecommerce", "biotech", "consulting"),category_code, "other"))
-
-skim(data)
-
 ```
+
+We pick the interval zero to three years, which means that firms achieved their first milestone when they were between 0 and 3 years old. We pick this interval because we wanna investigate whether it is positive or not in terms of getting acquired for a firm to get their first milestone quick eg. in the first couple of years.
+
+And this conclude our variable selecting which now will be explained more thoroughly below.
+
+Forklar hvad hver enkelt variabel er.
+
+
+
 
 # EDA
 Lav SIomns plot og tag dem der ser mest relevante ud
