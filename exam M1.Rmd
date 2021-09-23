@@ -9,7 +9,6 @@ output: html_document
 ```{r}
 library(tidyverse)
 
-
 library(lubridate)
 
 library(magrittr)
@@ -306,6 +305,67 @@ res_km_pca1 %>%
                ggtheme = theme_gray())  
 
 #Supervised ML Classification of aquired and closed
+```
+
+##Hirarchical Clustering
+Her indeholder "hc_func" et "stand = TRUE"-argument, hvorfor data ikke skal skaleres f?rst. 
+```{r}
+res_hc <- data %>%
+  select_if(is_numeric) %>%
+  hcut(hc_func = "hclust", 
+       k = 4, 
+       stand = TRUE)
+
+```
+
+*In hierarchical clustering, you categorize the objects into a hierarchy similar to a tree-like diagram which is called a dendrogram.* 
+*The distance of split or merge (called height) is shown on the y-axis of the dendrogram below.* 
+*In the dendrogram every data point finally merges into a single cluster with the height(distance) shown on the y-axis.* 
+```{r}
+res_hc %>%
+  fviz_dend(rect = TRUE, cex = 0.5)
+
+```
+
+*Inspect the clusters.* 
+```{r}
+data %>%
+  bind_cols(cluster = res_hc$cluster) %>%
+  select_if(is_numeric) %>%
+  group_by(cluster) %>%
+  mutate(n = n()) %>%
+  summarise_all(mean)
+
+```
+
+Hermed f?r vi de tre clusters. 
+```{r}
+res_hc %>%
+  fviz_cluster(data = penguins %>% select_if(is_numeric),
+               ggtheme = theme_gray()) 
+
+```
+
+Vi kan igen lave en krydstabel mellem clusters og penguins, hvor vi kan observerer at Adelie udelukkende optr?der i cluster 1. Dette stemmer samtidig overens med 2d-plottet. Det observeres dermed at "hierarchical clustering" er en smule bedre end "K-means clustering". 
+```{r}
+table(penguins$species_short, res_hc$cluster)
+
+```
+
+##Hirarchical Clustering based in PCA
+*Combine a PCA with clustering techniques.* 
+```{r}
+res_hcpc <- res_pca %>% 
+  HCPC(nb.clust = -1, #  self determined: higher relative loss of inertia
+       graph = FALSE) 
+
+```
+
+Vi kan her lave et 3d-plot for clusters. 
+```{r}
+res_hcpc %>%
+  plot(choice = "3D.map")
+
 ```
 
 
