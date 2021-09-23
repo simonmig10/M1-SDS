@@ -257,9 +257,18 @@ ggtheme = theme_gray())
 
 ```{r}
 data[,"cluster3"] <- res_km3$cluster
-data[,"cluster4"] <- res_km4$cluster
+data[,"cluster4"] <- res_km4$
+  
+table(data$cluster3, data$category_code)
+table(data$cluster3, data$active)
+table(data$cluster3, data$state_code)
+
 table(data$cluster4, data$category_code)
+table(data$cluster4, data$active)
+table(data$cluster4, data$state_code)
 ```
+The clusters don't seem to be separated by either category_code, active or state_code
+
 
 ```{r}
 data[,"pca1"] <- res_pca$ind$coord[,1]
