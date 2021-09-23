@@ -38,7 +38,7 @@ Also some of the columns show the same thing,
 ```{r}
 
 data %<>%
-  select(!c(`Unnamed: 0`, `Unnamed: 6`, status, state_code.1, object_id, avg_participants))
+  select(!c(`Unnamed: 0`, `Unnamed: 6`, state_code.1, object_id, avg_participants))
 
 glimpse(data)
 
@@ -69,23 +69,41 @@ skim(data)
 
 #We make intervals for first milestone
 data %<>%
-  mutate(age_first_milestone_year_int= ifelse(age_first_milestone_year <0,"before year 0",ifelse(age_first_milestone_year <= 3 , "[0-3]", ifelse(age_first_milestone_year <= 6, "]3-6]", ifelse(age_first_milestone_year <=9, "]6-9]", ifelse(age_first_milestone_year > 9, "over 9", "")))))) %>%
+  mutate(age_first_milestone_year= ifelse(age_first_milestone_year <0,"before year 0",ifelse(age_first_milestone_year <= 3 , "[0-3]", ifelse(age_first_milestone_year <= 6, "]3-6]", ifelse(age_first_milestone_year <=9, "]6-9]", ifelse(age_first_milestone_year > 9, "over 9", "")))))) %>%
   mutate(age_first_milestone_year= replace_na(age_first_milestone_year, "no milestone"))
 
 #We make intervals for last milestone
 data %<>%
-  mutate(age_last_milestone_year_int= ifelse(age_last_milestone_year <0,"before year 0",ifelse(age_last_milestone_year <= 3 , "[0-3]", ifelse(age_last_milestone_year <= 6, "]3-6]", ifelse(age_last_milestone_year <=9, "]6-9]", ifelse(age_last_milestone_year > 9, "over 9", "")))))) %>%
+  mutate(age_last_milestone_year= ifelse(age_last_milestone_year <0,"before year 0",ifelse(age_last_milestone_year <= 3 , "[0-3]", ifelse(age_last_milestone_year <= 6, "]3-6]", ifelse(age_last_milestone_year <=9, "]6-9]", ifelse(age_last_milestone_year > 9, "over 9", "")))))) %>%
   mutate(age_last_milestone_year= replace_na(age_last_milestone_year, "no milestone"))
 
-skim(data)
+data %<>%    mutate(state_code = ifelse(data$state_code %in% c("CA", "NY", "MA", "TX"), data$state_code, "other")) 
+data %<>%    mutate(category_code = ifelse(data$category_code %in% c("software", "web", "mobile", "enterprise", "advertising", "gamesvideo", "ecommerce", "biotech", "consulting"),category_code, "other"))
 
-data %<>% 
-  mutate(active = labels == 1) %>%
-  mutate(is_CA = is_CA ==1)
+glimpse(data)
+
+skim(data)
 
 ```
 
 # EDA
+
+```{r}
+data %<>%
+  rename(y = Churn) %>%
+  select(y, everything(), -customerID) 
+```
+
+```{r,fig.height=5,fig.width=12.5}
+# install.packages('ggridges') # install if necessary
+data %>%
+  gather(variable, value, -y) %>% # Note: At one point do pivot_longer instead
+  ggplot(aes(y = as.factor(variable), 
+             fill =  as.factor(y), 
+             x = percent_rank(value)) ) +
+  ggridges::geom_density_ridges(alpha = 0.75)
+```
+
 
 ```{r, fig.height=12, fig.width=12, warning=FALSE}
 library(GGally)
@@ -122,4 +140,269 @@ Og så videre til PCA.
 
 # Unsupervised ML
 
+#Supervised ML Classification of aquired and closed
 
+```{r}
+data %>% head()
+```
+
+```{r}
+data %>% glimpse()
+
+```
+
+
+```{r}
+data_sml= data %>%
+  rename(y = status) %>%
+  select(y, age_first_funding_year, age_last_funding_year, age_first_milestone_year, age_last_milestone_year, relationships, funding_rounds, funding_total_usd, milestones, is_top500, has_angel, is_CA, is_NY, is_MA, is_TX, is_software, is_web) 
+
+glimpse(data_sml)
+```
+##EDA sml
+
+```{r,fig.height=5,fig.width=12.5}
+library(ggridges)
+data_sml %>%
+  gather(variable, value, -y) %>% # Note: At one point do pivot_longer instead
+  ggplot(aes(y = as.factor(variable), 
+             fill =  as.factor(y), 
+             x = percent_rank(value)) ) +
+  ggridges::geom_density_ridges(alpha = 0.75)
+```
+## Data Preprocessing
+
+
+### Training & Test split
+
+```{r}
+data_split <- initial_split(data_sml, prop = 0.75, strata = y)
+
+data_train <- data_split  %>%  training()
+data_test <- data_split %>% testing()
+```
+
+
+### Preprocessing recipe
+
+Tror den sletter alle categoriske variable ved ikk om der skal laves en step_dummy for categroical?
+
+```{r}
+
+
+data_recipe <- data_train %>%
+  recipe(y ~.) %>%
+  step_log(funding_total_usd) %>% #Myb just delete this one
+  step_center(all_numeric(), -all_outcomes()) %>%
+  step_scale(all_numeric(), -all_outcomes()) %>%
+  step_dummy(all_nominal(), -all_outcomes()) %>%
+  na.omit(all_predictors()) %>% #  knn inputation of missing values
+  prep()
+```
+
+### Defining the models
+
+#### Logistic Regression
+
+```{r}
+model_lg <- logistic_reg(mode = 'classification') %>%
+  set_engine('glm', family = binomial) 
+```
+
+#### Decision tree
+
+```{r}
+model_dt <- decision_tree(mode = 'classification',
+                          cost_complexity = tune(),
+                          tree_depth = tune(), 
+                          min_n = tune()
+                          ) %>%
+  set_engine('rpart') 
+```
+
+#### Extreme Gradient Boosted Tree (XGBoost)
+
+```{r}
+model_xg <- boost_tree(mode = 'classification', 
+                       trees = 100,
+                       mtry = tune(), 
+                       min_n = tune(), 
+                       tree_depth = tune(), 
+                       learn_rate = tune()
+                       ) %>%
+  set_engine("xgboost") 
+```
+
+#### Define workflow
+
+```{r}
+workflow_general <- workflow() %>%
+  add_recipe(data_recipe) 
+
+workflow_lg <- workflow_general %>%
+  add_model(model_lg)
+
+workflow_dt <- workflow_general %>%
+  add_model(model_dt)
+
+workflow_xg <- workflow_general %>%
+  add_model(model_xg)
+```
+
+
+
+### Hyperparameter Tuning
+
+#### Validation Sampling (N-fold crossvlidation)
+
+```{r}
+data_resample <- data_train %>% 
+  vfold_cv(strata = y,
+           v = 3,
+           repeats = 3)
+```
+
+#### Hyperparameter Tuning: Decision Tree
+
+Need to find out what the error is here!
+
+```{r}
+tune_dt <-
+  tune_grid(
+    workflow_dt,
+    resamples = data_resample,
+    grid = 5
+  )
+```
+
+```{r}
+tune_dt %>% autoplot()
+```
+
+```{r}
+best_param_dt <- tune_dt %>% select_best(metric = 'roc_auc')
+best_param_dt
+```
+
+```{r}
+tune_dt %>% show_best(metric = 'roc_auc', n = 1)
+```
+
+
+#### Hyperparameter Tuning: Random Forest
+
+
+
+```{r}
+library(xgboost)
+
+tune_xg <-
+  tune_grid(
+    workflow_xg,
+    resamples = data_resample,
+    grid = 10
+  )
+```
+
+```{r}
+tune_xg %>% autoplot()
+```
+
+```{r}
+best_param_xg <- tune_xg %>% select_best(metric = 'roc_auc')
+best_param_xg
+```
+
+```{r}
+tune_xg %>% show_best(metric = 'roc_auc', n = 1)
+```
+
+
+#### Fit models with tuned hyperparameters
+
+
+```{r}
+workflow_final_dt <- workflow_dt %>%
+  finalize_workflow(parameters = best_param_dt)
+
+workflow_final_xg <- workflow_xg %>%
+  finalize_workflow(parameters = best_param_xg)
+```
+
+```{r}
+fit_lg <- workflow_lg %>%
+  fit(data_train)
+
+fit_dt <- workflow_final_dt %>%
+  fit(data_train)
+
+fit_xg <- workflow_final_xg %>%
+  fit(data_train)
+```
+
+#### Compare performance
+
+```{r}
+pred_collected <- tibble(
+  truth = data_train %>% pull(y) %>% as.factor(),
+  #base = mean(truth),
+  lg = fit_lg %>% predict(new_data = data_train) %>% pull(.pred_class),
+  dt = fit_dt %>% predict(new_data = data_train) %>% pull(.pred_class),
+  xg = fit_xg %>% predict(new_data = data_train) %>% pull(.pred_class),
+  ) %>% 
+  pivot_longer(cols = -truth,
+               names_to = 'model',
+               values_to = '.pred')
+```
+
+```{r}
+pred_collected %>% head()
+```
+
+
+```{r}
+pred_collected %>%
+  group_by(model) %>%
+  accuracy(truth = truth, estimate = .pred) %>%
+  select(model, .estimate) %>%
+  arrange(desc(.estimate))
+```
+
+```{r}
+pred_collected %>%
+  group_by(model) %>%
+  bal_accuracy(truth = truth, estimate = .pred) %>%
+  select(model, .estimate) %>%
+  arrange(desc(.estimate))
+```
+
+Surprisingly, here the less complex model seems to hve the edge!
+
+
+#### Final prediction
+
+So, now we are almost there. Since we know we will use the random forest, we only have to predict on our test sample and see how we fair...
+
+```{r}
+fit_last_dt <- workflow_final_dt %>% last_fit(split = data_split)
+```
+
+```{r}
+fit_last_dt %>% collect_metrics()
+```
+
+#### Variable importance
+
+```{r}
+fit_last_dt %>% 
+  pluck(".workflow", 1) %>%   
+  pull_workflow_fit() %>% 
+  vip::vip(num_features = 11)
+```
+
+
+```{r}
+fit_xg %>%
+  pull_workflow_fit() %>%
+  vip::vip(num_features = 10)
+```
