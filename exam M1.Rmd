@@ -322,7 +322,7 @@ data %>% glimpse()
 ```{r}
 data_sml= data %>%
   rename(y = status) %>%
-  select(y, funding_total_usd, funding_rounds, relationships, milestones, is_top500, `is_0:3`) 
+  select(y, funding_total_usd, funding_rounds, relationships, milestones, is_top500, `is_0:3`, age_last_funding_year) 
 
 glimpse(data_sml)
 ```
@@ -351,9 +351,11 @@ data_recipe <- data_train %>%
   step_log(funding_total_usd) %>% #Myb just delete this one
   step_center(all_numeric(), -all_outcomes()) %>%
   step_scale(all_numeric(), -all_outcomes()) %>%
-  step_dummy(all_nominal(), -all_outcomes()) %>%
-  na.omit(all_predictors()) %>% #  knn inputation of missing values
+  step_dummy(all_nominal(), -all_outcomes()) %>% 
   prep()
+
+
+#na.omit(all_predictors()) %>%
 ```
 
 ### Defining the models
