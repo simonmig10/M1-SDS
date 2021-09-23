@@ -322,20 +322,11 @@ data %>% glimpse()
 ```{r}
 data_sml= data %>%
   rename(y = status) %>%
-  select(y, age_first_funding_year, age_last_funding_year, age_first_milestone_year, age_last_milestone_year, relationships, funding_rounds, funding_total_usd, milestones, is_top500, has_angel, is_CA, is_NY, is_MA, is_TX, is_software, is_web) 
+  select(y, funding_total_usd, funding_rounds, relationships, milestones, is_top500, `is_0:3`) 
 
 glimpse(data_sml)
 ```
-##EDA sml
 
-```{r,fig.height=5,fig.width=12.5}
-data_sml %>%
-  gather(variable, value, -y) %>% # Note: At one point do pivot_longer instead
-  ggplot(aes(y = as.factor(variable), 
-             fill =  as.factor(y), 
-             x = percent_rank(value)) ) +
-  ggridges::geom_density_ridges(alpha = 0.75)
-```
 ## Data Preprocessing
 
 
@@ -419,6 +410,8 @@ workflow_xg <- workflow_general %>%
 ### Hyperparameter Tuning
 
 #### Validation Sampling (N-fold crossvlidation)
+
+
 
 ```{r}
 data_resample <- data_train %>% 
@@ -570,3 +563,5 @@ fit_xg %>%
   pull_workflow_fit() %>%
   vip::vip(num_features = 20)
 ```
+
+
