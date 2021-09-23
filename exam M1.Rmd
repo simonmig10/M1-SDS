@@ -599,6 +599,7 @@ truth_lg=pred_collected_t %>%
   filter(model== "lg")%>%
   pull(truth)
 
+
 caret::confusionMatrix(data = pred_lg, reference= truth_lg )
 
 #Decision tree
@@ -630,6 +631,7 @@ caret::confusionMatrix(data = pred_xg, reference= truth_xg )
 
 
 ```{r}
+
 lr_auc <- 
   lr_res %>% 
   collect_predictions(parameters = lr_best) %>% 
@@ -637,6 +639,18 @@ lr_auc <-
   mutate(model = "Logistic Regression")
 
 autoplot(lr_auc)
+
+
+library(ROCR)
+pred_dt
+truth_dt
+#data(ROCR.simple)
+#df <- data.frame(ROCR.simple)
+pred_dt_2 <- prediction(pred_dt, truth_dt)
+perf <- performance(pred,"tpr","fpr")
+plot(perf,colorize=TRUE)
+
+df$predictions
 ```
 
 
