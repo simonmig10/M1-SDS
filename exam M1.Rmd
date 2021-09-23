@@ -9,9 +9,31 @@ output: html_document
 ```{r}
 library(tidyverse)
 
-library(skimr)
+library(lubridate)
 
 library(magrittr)
+
+library(FactoMineR)
+
+library(factoextra)
+
+library(uwot)
+
+library(GGally)
+
+library(rsample)
+
+library(ggridges)
+
+library(xgboost)
+
+library(recipes)
+
+library(parsnip)
+
+library(glmnet)
+
+library(tidymodels)
 ```
 
 
@@ -88,34 +110,6 @@ skim(data)
 
 # EDA
 
-```{r}
-data %<>%
-  rename(y = Churn) %>%
-  select(y, everything(), -customerID) 
-```
-
-```{r,fig.height=5,fig.width=12.5}
-# install.packages('ggridges') # install if necessary
-data %>%
-  gather(variable, value, -y) %>% # Note: At one point do pivot_longer instead
-  ggplot(aes(y = as.factor(variable), 
-             fill =  as.factor(y), 
-             x = percent_rank(value)) ) +
-  ggridges::geom_density_ridges(alpha = 0.75)
-```
-
-
-```{r, fig.height=12, fig.width=12, warning=FALSE}
-library(GGally)
-data %>% 
-  select(funding_total_usd, funding_rounds, relationships,age_first_funding_year, age_last_funding_year, milestones, active) %>%
-  ggpairs(legend = 1,
-          mapping = ggplot2::aes(colour=active, alpha = 0.5), 
-          lower = list(continuous = wrap("smooth", alpha = 0.3, size=0.1))) +
-  theme(legend.position = "bottom")
-
-```
-Ja vi kan droppe de to ringe.
 
 ```{r}
 
@@ -129,16 +123,168 @@ data %<>%
   filter(percent_rank(age_last_milestone_year) <0.99)
 ```
 
+```{r, fig.height=12, fig.width=12, warning=FALSE}
+data %>% 
+  select(funding_total_usd, funding_rounds, relationships,age_first_funding_year, age_last_funding_year, milestones, status) %>%
+  ggpairs(legend = 1,
+          mapping = ggplot2::aes(colour=status, alpha = 0.5), 
+          lower = list(continuous = wrap("smooth", alpha = 0.3, size=0.1))) +
+  theme(legend.position = "bottom")
+
+```
+Ja vi kan droppe de to ringe.
+
+
 Så laver vi nogle lækre summary stats
 ```{r}
 data %>% 
-  group_by(active) %>% 
+  group_by(status) %>% 
   select(relationships, milestones, funding_rounds, funding_total_usd) %>% 
   summarise_if(is.numeric, mean, na.rm = TRUE)
 ```
 Og så videre til PCA.
 
 # Unsupervised ML
+
+Should we scale the data?
+
+```{r}
+options(scipen = 999)
+
+data_num = data %>% 
+  select(funding_total_usd, funding_rounds, relationships,age_first_funding_year, age_last_funding_year, milestones)
+
+s_deviation=apply(data_num,2, sd)
+
+mean1=colMeans(data_num)
+
+scale= as.data.frame(s_deviation, row.names = c("sd"))%>%
+cbind(as.data.frame(mean1, row.names = "mean"))%>%
+print()
+```
+We can se the data is gonna need scaling to peform pca, because our variables is not on the same scale. Namely funding_total_usd seems much higher.
+
+```{r warning=FALSE}
+pca_data = data %>% 
+  select(funding_total_usd, funding_rounds, relationships,age_first_funding_year, age_last_funding_year, milestones)
+
+res_pca <- pca_data %>%
+  PCA(scale.unit = TRUE, graph =FALSE)
+
+
+```
+
+```{r}
+res_pca %>% 
+  fviz_screeplot(addlabels = TRUE, 
+                 ncp = 10, 
+                 ggtheme = theme_gray())
+```
+We can see the elbow shows the optimal dimensions are two dimensions with almost 80% explained variance. Then we visualize our reduced data in two dimensions.
+
+```{r, fig.height=7, fig.width=9, warning=FALSE}
+res_pca %>%
+  fviz_pca_biplot(alpha.ind = "cos2",
+                  col.ind = "contrib",
+                  gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                  geom = "point",
+                  ggtheme = theme_gray())
+```
+From the plot we can see, that the x-axis split our six variables into two groups so to say. Where the ones involving funding, funding rounds, milestone and relationships are above the x-axis and our two variables involving the age of a firm during its first and last funding is below. 
+
+```{r, fig.height=7, fig.width=9, warning=FALSE}
+res_pca %>%
+fviz_pca_biplot(alpha.ind = "cos2",
+habillage = data %>% pull(state_code) %>% factor(),
+addEllipses = TRUE,
+geom = "point",
+ggtheme = theme_gray())
+
+```
+
+## UMAP
+```{r}
+res_umap <- pca_data  %>%
+umap(n_neighbors = 15,
+     metric = "cosine",
+min_dist = 0.01,
+scale = TRUE)
+```
+
+```{r}
+res_umap %>%
+as_tibble() %>%
+ggplot(aes(x = V1, y = V2, fill = data$status)) +
+geom_point(shape = 21, alpha = 0.5)
+```
+## Clustering
+
+```{r}
+pca_data %>%
+scale() %>%
+fviz_nbclust(kmeans, method = "wss")
+```
+Seems like the optimal number of clusters is somewhere around 3 or 4 clusters, so we try both
+
+```{r}
+res_km3 <- pca_data %>%
+scale() %>%
+kmeans(centers = 3, nstart = 20)
+
+res_km4 <- pca_data %>%
+scale() %>%
+kmeans(centers = 4, nstart = 20)
+```
+
+
+```{r}
+par(mfrow=c(2,1))
+res_km3 %>%
+fviz_cluster(data = pca_data ,
+ggtheme = theme_gray())
+
+res_km4 %>%
+fviz_cluster(data = pca_data ,
+ggtheme = theme_gray())
+```
+
+```{r}
+data[,"cluster3"] <- res_km3$cluster
+data[,"cluster4"] <- res_km4$cluster
+  
+table(data$cluster3, data$category_code)
+table(data$cluster3, data$status)
+table(data$cluster3, data$state_code)
+
+table(data$cluster4, data$category_code)
+table(data$cluster4, data$status)
+table(data$cluster4, data$state_code)
+```
+The clusters don't seem to be separated by either category_code, active or state_code
+
+
+```{r}
+data[,"pca1"] <- res_pca$ind$coord[,1]
+data[,"pca2"] <- res_pca$ind$coord[,2]
+```
+
+```{r}
+data %>%
+  group_by(cluster4) %>%
+  summarise(pca1 = pca1 %>% mean(),
+            pca2 = pca2 %>% mean())
+```
+
+```{r}
+par(mfrow=c(2,1))
+data %>%
+ggplot(aes(x=pca1, y=pca2, color=factor(cluster3)))+
+geom_point()
+data %>%
+ggplot(aes(x=pca1, y=pca2, color=factor(cluster4)))+
+geom_point()
+```
+
 
 #Supervised ML Classification of aquired and closed
 
@@ -162,7 +308,6 @@ glimpse(data_sml)
 ##EDA sml
 
 ```{r,fig.height=5,fig.width=12.5}
-library(ggridges)
 data_sml %>%
   gather(variable, value, -y) %>% # Note: At one point do pivot_longer instead
   ggplot(aes(y = as.factor(variable), 
@@ -188,7 +333,6 @@ data_test <- data_split %>% testing()
 Tror den sletter alle categoriske variable ved ikk om der skal laves en step_dummy for categroical?
 
 ```{r}
-
 
 data_recipe <- data_train %>%
   recipe(y ~.) %>%
@@ -294,7 +438,6 @@ tune_dt %>% show_best(metric = 'roc_auc', n = 1)
 
 
 ```{r}
-library(xgboost)
 
 tune_xg <-
   tune_grid(
