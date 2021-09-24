@@ -846,6 +846,19 @@ cv_folds <-
 
 
 ## Model building
+
+### Decision tree
+
+```{r}
+dt_spec <- decision_tree(mode = 'classification',
+                          cost_complexity = tune(),
+                          tree_depth = tune(), 
+                          min_n = tune()
+                          ) %>%
+  set_engine('rpart') 
+```
+
+
 ### Logistic regression
 ```{r}
 log_spec <- # your model specification
@@ -908,18 +921,32 @@ We set the engine-specific verbose argument to prevent logging the results.
 ## Create workflows
 A workflow is an object that can bundle together your pre-processing recipe, modeling, and even post-processing requests (like calculating the RMSE).
 
+### Decision tree
+
+```{r}
+d_tree_wflow <- # new workflow object
+ workflow() %>% # use workflow function
+ add_recipe(data_recipe) %>%   # use the new recipe
+ add_model(log_spec)   # add your model spec
+
+# show object
+d_tree_wflow
+```
+
 ### Logistic regression
 ```{r}
 log_wflow <- # new workflow object
  workflow() %>% # use workflow function
  add_recipe(data_recipe) %>%   # use the new recipe
- add_model(log_spec)   # add your model spec
+ add_model(dt_spec)   # add your model spec
 
 # show object
 log_wflow
 ```
 
 Vi har 3 recipe steps mindre end de har
+
+
 
 ### Random forest
 ```{r}
@@ -1084,6 +1111,202 @@ log_pred %>%
 ```
 
 Kan vi lave på andre end log
+
+
+```{r}
+log_pred %>% 
+  ggplot() +
+  geom_density(aes(x = .pred_acquired, 
+                   fill = y), 
+               alpha = 0.5)
+```
+
+
+## Random Forest
+
+```{r}
+rf_res <-
+  rf_wflow %>% 
+  fit_resamples(
+    resamples = cv_folds, 
+    metrics = metric_set(
+      recall, precision, f_meas, 
+      accuracy, kap,
+      roc_auc, sens, spec),
+    control = control_resamples(save_pred = TRUE)
+    ) 
+
+rf_res %>%  collect_metrics(summarize = TRUE)
+```
+## XGBoost
+
+```{r}
+xgb_res <- 
+  xgb_wflow %>% 
+  fit_resamples(
+    resamples = cv_folds, 
+    metrics = metric_set(
+      recall, precision, f_meas, 
+      accuracy, kap,
+      roc_auc, sens, spec),
+    control = control_resamples(save_pred = TRUE)
+    ) 
+
+xgb_res %>% collect_metrics(summarize = TRUE)
+```
+
+```{r}
+knn_res <- 
+  knn_wflow %>% 
+  fit_resamples(
+    resamples = cv_folds, 
+    metrics = metric_set(
+      recall, precision, f_meas, 
+      accuracy, kap,
+      roc_auc, sens, spec),
+    control = control_resamples(save_pred = TRUE)
+    ) 
+
+knn_res %>% collect_metrics(summarize = TRUE)
+```
+## Decision tree
+
+```{r}
+dt_res <- 
+  d_tree_wflow %>% 
+  fit_resamples(
+    resamples = cv_folds, 
+    metrics = metric_set(
+      recall, precision, f_meas, 
+      accuracy, kap,
+      roc_auc, sens, spec),
+    control = control_resamples(save_pred = TRUE)
+    ) 
+
+dt_res %>% collect_metrics(summarize = TRUE)
+```
+
+## Compare models
+
+```{r}
+log_metrics <- 
+  log_res %>% 
+  collect_metrics(summarise = TRUE) %>%
+  mutate(model = "Logistic Regression") # add the name of the model to every row
+
+rf_metrics <- 
+  rf_res %>% 
+  collect_metrics(summarise = TRUE) %>%
+  mutate(model = "Random Forest")
+
+xgb_metrics <- 
+  xgb_res %>% 
+  collect_metrics(summarise = TRUE) %>%
+  mutate(model = "XGBoost")
+
+knn_metrics <- 
+  knn_res %>% 
+  collect_metrics(summarise = TRUE) %>%
+  mutate(model = "Knn")
+
+dt_metrics <- 
+  dt_res %>% 
+  collect_metrics(summarise = TRUE) %>%
+  mutate(model = "Decision tree")
+
+```
+
+
+```{r}
+# create dataframe with all models
+model_compare <- bind_rows(
+                          log_metrics,
+                           rf_metrics,
+                           xgb_metrics,
+                           knn_metrics,
+                          dt_metrics,
+                           ) 
+
+# change data structure
+model_comp <- 
+  model_compare %>% 
+  select(model, .metric, mean, std_err) %>% 
+  pivot_wider(names_from = .metric, values_from = c(mean, std_err)) 
+
+# show mean F1-Score for every model
+model_comp %>% 
+  arrange(mean_f_meas) %>% 
+  mutate(model = fct_reorder(model, mean_f_meas)) %>% # order results
+  ggplot(aes(model, mean_f_meas, fill=model)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_brewer(palette = "Blues") +
+   geom_text(
+     size = 3,
+     aes(label = round(mean_f_meas, 2), y = mean_f_meas + 0.08),
+     vjust = 1
+  )
+```
+It looks like the Random Forest is the best! 
+
+```{r}
+# show mean area under the curve (auc) per model
+model_comp %>% 
+  arrange(mean_roc_auc) %>% 
+  mutate(model = fct_reorder(model, mean_roc_auc)) %>%
+  ggplot(aes(model, mean_roc_auc, fill=model)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_brewer(palette = "Blues") + 
+     geom_text(
+     size = 3,
+     aes(label = round(mean_roc_auc, 2), y = mean_roc_auc + 0.08),
+     vjust = 1
+  )
+```
+## We now use the best model on test data
+
+```{r}
+last_fit_rf <- last_fit(rf_wflow, 
+                        split = data_split,
+                        metrics = metric_set(
+                          recall, precision, f_meas, 
+                          accuracy, kap,
+                          roc_auc, sens, spec)
+                        )
+```
+
+
+```{r}
+last_fit_rf %>% 
+  collect_metrics()
+```
+```{r}
+library(vip)
+
+last_fit_rf %>% 
+  pluck(".workflow", 1) %>%   
+  pull_workflow_fit() %>% 
+  vip(num_features = 10)
+```
+
+```{r}
+last_fit_rf %>%
+  collect_predictions() %>% 
+  conf_mat(y, .pred_class) %>% 
+  autoplot(type = "heatmap")
+
+
+```
+
+
+```{r}
+last_fit_rf %>% 
+  collect_predictions() %>% 
+  roc_curve(y, .pred_acquired) %>% 
+  autoplot()
+```
+Det er nok ik verdens bedste model, men heller ik verdens væreste!
 
 
 ## leg med far
