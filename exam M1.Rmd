@@ -746,9 +746,45 @@ is.na(data) %>% colSums()
 A **training dataset** is a dataset of examples used during the learning process and is used to fit the models. 
 A **test dataset** is a dataset that is independent of the training dataset and is used to evaluate the performance of the final model. If a model fit to the training dataset also fits the test dataset well, minimal overfitting has taken place. A better fitting of the training dataset as opposed to the test dataset usually points to overfitting.
 
+Laver lige status til numerisk. Dette gør vi fordi der kom fejl længere nede.
+
 ```{r}
-data_train #75% af observationer
-data_test #25% af observationer
+data_y_num <- data_sml
+data_y_num
+
+data_y_num %>% 
+  mutate(y = ifelse(y == "closed", 0, 1))
+```
+
+```{r}
+data_split_stat_num <- initial_split(data_y_num, prop = 0.75, strata = y)
+
+data_train_num <- data_split_stat_num  %>%  training()
+data_test_num <- data_split_stat_num %>% testing()
+```
+
+
+
+Laver lige recipe igen med dummy i stedet
+
+```{r}
+
+data_recipe <- data_train_num %>%
+  recipe(y ~.) %>%
+  step_log(funding_total_usd) %>% #Myb just delete this one
+  step_center(all_numeric(), -all_outcomes()) %>%
+  step_scale(all_numeric(), -all_outcomes()) %>%
+  step_dummy(all_nominal(), -all_outcomes()) %>% 
+  prep()
+
+#na.omit(all_predictors()) %>%
+```
+
+```{r}
+data_train_num #75% af observationer
+data_test_num #25% af observationer
+
+data_y_num 
 ```
 ### Data exploration
 #### Create data copy
@@ -803,7 +839,7 @@ We use k-fold crossvalidation to build a set of 5 validation folds with the func
 
 ```{r}
 cv_folds <-
- vfold_cv(data_train, 
+ vfold_cv(data_train_num, 
           v = 5, 
           strata = y) 
 ```
@@ -934,19 +970,6 @@ We use our workflow object to perform resampling. Furthermore, we use metric_set
 Note that Cohen’s kappa coefficient (κ) is a similar measure to accuracy, but is normalized by the accuracy that would be expected by chance alone and is very useful when one or more classes have large frequency distributions. The higher the value, the better.
 
 ```{r}
-data_y_num <- data
-data_y_num
-
-data_y_num %<>%
-  mutate(status= ifelse(status = "closed", 0,1))
-```
-
-```{r}
-data_y_num
-```
-
-
-```{r}
 log_res <- 
   log_wflow %>% 
   fit_resamples(
@@ -958,15 +981,109 @@ log_res <-
     control = control_resamples(
       save_pred = TRUE)
     ) 
-?metric_set
 
-data_recipe
-
-ifelse()
 ```
 
-Tror vi bliver nødt til at 
+Den der over her var den der ikke fungerede med string
 
+#### Model coefficients
+
+```{r}
+# save model coefficients for a fitted model object from a workflow
+
+get_model <- function(x) {
+  pull_workflow_fit(x) %>% tidy()
+}
+
+# same as before with one exception
+log_res_2 <- 
+  log_wflow %>% 
+  fit_resamples(
+    resamples = cv_folds, 
+    metrics = metric_set(
+      recall, precision, f_meas, 
+      accuracy, kap,
+      roc_auc, sens, spec),
+    control = control_resamples(
+      save_pred = TRUE,
+      extract = get_model) # use extract and our new function
+    ) 
+```
+
+```{r}
+log_res_2$.extracts[[1]][[1]]
+```
+
+```{r}
+all_coef <- map_dfr(log_res_2$.extracts, ~ .x[[1]][[1]])
+```
+
+Show all of the resample coefficients for a single predictor:
+```{r}
+filter(all_coef, term == "relationships")
+```
+
+### Performance metrics
+Show average performance over all folds (note that we use log_res):
+
+```{r}
+log_res %>%  collect_metrics(summarize = TRUE)
+```
+Show performance for every single fold:
+
+```{r}
+log_res %>%  collect_metrics(summarize = FALSE)
+```
+
+### Collect model predictions
+To obtain the actual model predictions, we use the function collect_predictions and save the result as log_pred:
+
+```{r}
+log_pred <- 
+  log_res %>%
+  collect_predictions()
+```
+
+### Confusion Matrix
+
+Nu kan vi bruge vores indsamlede predictions til at lave en confusion matrix
+
+```{r}
+log_pred %>% 
+  conf_mat(y, .pred_class) 
+```
+
+Eller
+```{r}
+log_pred %>% 
+  conf_mat(y, .pred_class) %>% 
+  autoplot(type = "mosaic")
+```
+
+Eller (den her synes jeg er bedst)
+
+```{r}
+log_pred %>% 
+  conf_mat(y, .pred_class) %>% 
+  autoplot(type = "heatmap")
+```
+
+## ROC curve
+```{r}
+log_pred %>% 
+  roc_curve(y, .pred_acquired) %>% 
+  autoplot()
+```
+
+Med folds
+```{r}
+log_pred %>% 
+  group_by(id) %>%
+    roc_curve(y, .pred_acquired) %>% 
+  autoplot()
+```
+
+Kan vi lave på andre end log
 
 
 ## leg med far
