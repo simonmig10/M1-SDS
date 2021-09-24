@@ -1,0 +1,14 @@
+---
+title: "Stakeholder report M1"
+author: "Mikkel Bak Lyngø"
+date: "24 sep 2021"
+output: word_document
+---
+
+#Background and objectives for the Group Assignment
+
+In this assignment, we had the opportunity to use newly acquired abilities within Machine Learning to investigate a given problem statement. 
+
+#Problem statement
+
+Use ML to investigate 
