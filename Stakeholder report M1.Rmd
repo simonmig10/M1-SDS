@@ -20,13 +20,35 @@ Given the problem statement we then choose and obtain a dataset which we conside
 
 We will continuously refer to the current steps in the analysis, using ("1"), which is also associated with all parts of the code version of the assignment. 
 
-We start by loading all the relevant packages (1) which are used to later perform various functions in R. Then we load in our dataset (2) and in the same step we convert some date-variables to numerical values as these variables will be included in the pca later on. In the data cleaning process we first take a glimpse of the data (3) to get a better look at it. We start by removing columns we dont know what describes as they are not described when loading the dataset. Also some of the columns show the same thing and therefore removed as well (4) . 
-To look how wholesome the data is we skim it and observe some NA´s which we want to get rid of. In the variable "closed_at" we replace NA´s with "still going", which means that the startup is not closed (5, 6, 7). 
-Then we divide the variable "first_milestone" into intervals (8), as we want to investigate whether the duration of the first milestone has significance for the other variables of interest. In addition, we limit both "state_code" and "category_code" to preserve the most interesting outcomes and let the others be defined as "other". This completes our data cleaning process. 
+We start by loading all the relevant packages (1) which are used to later perform various functions in R. Then we load in our dataset (2) and in the same step we convert some date-variables to numerical values as these variables will be included in the pca later on. 
+In the data cleaning process we first skim the data (3) to see how wholesome it is. We start by removing columns that are undefined as they are not described when loading the dataset. Some of the columns show the same thing and are therefore removed as well. We also remove variables like "longtitude" and "latitude", which could be fun to work with later on, but doesnt seem to bring much insight to the ongoing analysis (4). 
 
-Moving on to the exploratory data analysis (EDA) we choose the variables that we find most relevant. This includes "funding_total_usd", "funding_rounds", "relationships","age_first_funding_year", "milestones" and "status". 
+By removing those we now have our dataset containing 33 numerical variables. We observe that 22 of those are dummy variables, which means that the variable only have 2 outcomes. It is possible to use dummy variables when trying to perform cluster analysis and see if our clusters are separated by selected dummy variables. However our main objective is to try and separate by the "status" column, which contains the outcomes: "closed" or "acquired". We therefore want to find out, which variables seems to be correlated with the "status" column, starting with the jobtype related dummies, the state related dummies and lastly the three remaining dummies. 
+
+Selecting the three dummy categories and plotting those separately against the variable "status" we get our 3 plots for correlation: 
+  The plot of the job type related dummies shows that there is almost no differences in how many firm closes and how many who becomes acquired according to job type. 
+  Looking at the state related dummies, the plot shows that a bit more firms from New York, Texas and California are being acquired than from the rest of the United States, which could indicate that they could be useful variables to use in our analysis. On the other hand you could argue, that the differences aren't substantial which would make them less influential in the analysis. 
+   Lastly in the plot of the three remaining dummy variables it is clear to see that whether or not the firm has been a top 500 upcoming firm substantially changes the chance of closing or not. Whether they have VC or angel investors doesn't seem to influence the outcome in a big way. 
+Given the results from our three plots we drop the "state" and "job" related variables plus the VC and angel dummies, however we keep "is_top500" and then we skim the data once again. 
+
+Still there are 8 numerical variables as well as 3 date variables we haven't taken a closer look at yet, which naturally takes us to the part where we determine how those variables seems to be correlated with the "status" column. By performing a plot containing "relationships", "milestones", "funding_total_usd", "funding_rounds", "closed_at", both "first and last milestone_year" and "last_funding_year" we observe that "closed_at" will not be used because it contains almost 600 missing observations which is close to 66% of all observations. Futhermore, "founded_at" will not be used either simply because there doesnt seem to be that big of a difference in the density plots. Using both "first and last milestone_year" might be irrelevant because they somehow nearly show the same thing, which is why we dont use "age_last_milestone_year". The same goes for "first and last funding_at" which doesn't show any significance either. 
+
+After the removal of selected variables we are left with only our "status" variable and our 7 numerical variables of interest. For those variables that remains we check for missing values. We observe that "age_first_milestone_year" has 152 missing values. However the problem with this variable is, that if we remove those rows, we lose 16.4% of our observations, and we cant just replace the NA's with something else - like zero - because that would only manipulate our data. The solution we have come up with is to divide the variable into intervals, as we want to investigate whether the duration to the first milestone has significance in terms of a startup getting acquired. We pick the interval zero to three years and we drop the rest, which means that startup achieved their first milestone when they were between 0 and 3 years old. This concludes our data preparation process. 
+
+Moving on to the exploratory data analysis (EDA) we now have our variables of interest: 
+```{r}
+names = colnames(data)
+description = c("numeric, age at last/latest funding", "numeric, number of relationships", "numeric, number of funding rounds", "numeric, the total funding in USD", "numeric, number og milestones", "dummy variable, has been a top 500 start up", "character string, acquired or closed", "reach their first milestone at the age of 0-3 years")
+
+table = cbind(names, description); table
+```
+
+We start by performing dimensionalty reduction on our data, however we need to know whether our data should be scaled before we can do so. 
+We observe that our data has to be scaled in order to peform PCA. Namely "funding_total_usd" seems much higher. We also have some dummy variables which only take a value of either 0 or 1, so these will also be on a different scale than the rest. 
+We scale the data by setting the argument scale.unit to TRUE and then we run the PCA. Further we can only run our PCA on numeric variables and therefore we use the data subset called "data_num". 
 
 
+#Conclusions
 
 
 
