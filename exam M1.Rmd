@@ -35,14 +35,14 @@ library(VIM)
 
 # load data
 
-```{r}
+```{r,chunk-label}
 data <- read_csv("startup data.csv", 
 col_types = cols(founded_at = col_date(format = "%m/%d/%Y"), 
 first_funding_at = col_date(format = "%m/%d/%Y"), 
 last_funding_at = col_date(format = "%m/%d/%Y")))
 ```
 
-# data celaning
+# data cleaning / EDA
 
 We take a quick look at the data
 ```{r}
@@ -135,7 +135,7 @@ data%<>%
 
 Now we are left with only our status variable and our 7 numerical variables of interest. Now we check for missing values in our remaning variables.
 
-```{r, fig.height=7, fig.width=9}
+```{r}
 data %>%
   select(everything()) %>%
   summarise_all(funs(sum(is.na(.))))
@@ -157,59 +157,32 @@ data %<>%
   mutate("is_6<" = as.numeric(age_first_milestone_year == "over 6")) %>% 
   mutate("is_no_milestone" = as.numeric(age_first_milestone_year == "no milestone"))
 
-```
-
-We pick the interval zero to three years, which means that firms achieved their first milestone when they were between 0 and 3 years old. We pick this interval because we wanna investigate whether it is positive or not in terms of getting acquired for a firm to get their first milestone quick eg. in the first couple of years.
-
-And this conclude our variable selecting which now will be explained more thoroughly below.
-
-Forklar hvad hver enkelt variabel er.
-
-
-
-
-# EDA
-Lav SIomns plot og tag dem der ser mest relevante ud
-
-Funding rounds, total_funding_usd, milestones, relationships, is_top500, intervaller af age first milestone year ingen, 0-3, 3-6 og over 6.
-
-```{r}
-
 data %<>%
-  filter(percent_rank(funding_total_usd) <0.99)
- 
-``` 
-
-```{r, fig.height=12, fig.width=12, warning=FALSE}
-data %>% 
-  select(funding_total_usd, funding_rounds, relationships,age_first_funding_year, age_last_funding_year, milestones, status) %>%
-  ggpairs(legend = 1,
-          mapping = ggplot2::aes(colour=status, alpha = 0.5), 
-          lower = list(continuous = wrap("smooth", alpha = 0.3, size=0.1))) +
-  theme(legend.position = "bottom")
+  select(!c(age_first_milestone_year, is_before_start, `is_3:6`, `is_6<`, is_no_milestone))
 
 ```
-Ja vi kan droppe de to ringe.
 
+We pick the interval zero to three years, so we drop the rest, which means that firms achieved their first milestone when they were between 0 and 3 years old. We pick this interval because we wanna investigate whether it is positive or not in terms of getting acquired for a firm to get their first milestone quick eg. in the first couple of years.
 
-Så laver vi nogle lækre summary stats
+And this conclude our variable selection which now will be explained more thoroughly below.
+
 ```{r}
-data %>% 
-  group_by(status) %>% 
-  select(relationships, milestones, funding_rounds, funding_total_usd) %>% 
-  summarise_if(is.numeric, mean, na.rm = TRUE)
+names = colnames(data)
+description = c("numeric, age at last/latest funding", "numeric, number of relationships", "numeric, number of funding rounds", "numeric, the total funding in USD", "numeric, number og milestones", "dummy variable, has been a top 500 start up", "character string, acquired or closed", "reach their first milestone at the age of 0-3 years")
+
+table = cbind(names, description); table
 ```
-Og så videre til PCA.
+Now we move on to unsupervised machine learning.
 
 # Unsupervised ML
 
-Should we scale the data?
+We start by performing dimensionalty reduction on our data, but before we can do that, we need to exmine or data to figure out if we need to scale it?
 
 ```{r}
 options(scipen = 999)
 
 data_num = data %>% 
-  select(funding_total_usd, funding_rounds, relationships,age_first_funding_year, age_last_funding_year, milestones)
+  select_if(is.numeric)
 
 s_deviation=apply(data_num,2, sd)
 
@@ -219,24 +192,26 @@ scale= as.data.frame(s_deviation, row.names = c("sd"))%>%
 cbind(as.data.frame(mean1, row.names = "mean"))%>%
 print()
 ```
-We can se the data is gonna need scaling to peform pca, because our variables is not on the same scale. Namely funding_total_usd seems much higher.
+We can se the data is gonna need scaling to peform pca, because our variables is not on the same scale. Namely funding_total_usd seems much higher. We also have some dummy variables which only take a value of either 0 or 1, so these will also be on a different scale then the rest, which is makes the case of scaling the data even stronger.
+   So we scale the data by setting the argument scale.unit to TRUE and then we run the PCA. Further we can only run our PCA on numeric variables so we use the data subset just created above "data_num".
 
 ```{r warning=FALSE}
-pca_data = data %>% 
-  select(funding_total_usd, funding_rounds, relationships, milestones, is_top500, `is_0:3`)
-
-res_pca <- pca_data %>%
+res_pca <- data_num %>%
   PCA(scale.unit = TRUE, graph =FALSE)
 
 ```
 
+Now we have our PCA we can create a screeplot to pick number og dimensions to use. 
 ```{r}
 res_pca %>% 
   fviz_screeplot(addlabels = TRUE, 
                  ncp = 10, 
                  ggtheme = theme_gray())
+
+eig.val = get_eigenvalue(res_pca); eig.val
 ```
-We can see the elbow shows the optimal dimensions are two dimensions with almost 80% explained variance. Then we visualize our reduced data in two dimensions.
+We can see the elbow shows the optimal dimensions are three dimensions with almost 65% explained variance. If we only look at the eigenvalues then our rule of thumb is to pick the dimensions with an eigenvalue >=1, which in this case is two dimensions. Those two dimensions only account for 52% of the total variance, which isn't partically high.
+    Then we visualize our reduced data in two dimensions.
 
 ```{r, fig.height=7, fig.width=9, warning=FALSE}
 res_pca %>%
@@ -260,7 +235,7 @@ ggtheme = theme_gray())
 
 ## UMAP
 ```{r}
-res_umap <- pca_data  %>%
+res_umap <- data_num  %>%
 umap(n_neighbors = 15,
      metric = "cosine",
 min_dist = 0.01,
@@ -276,18 +251,18 @@ geom_point(shape = 21, alpha = 0.5)
 ## Clustering
 
 ```{r}
-pca_data %>%
+data_num %>%
 scale() %>%
 fviz_nbclust(kmeans, method = "wss")
 ```
 Seems like the optimal number of clusters is somewhere around 3 or 4 clusters, so we try both
 
 ```{r}
-res_km3 <- pca_data %>%
+res_km3 <- data_num %>%
 scale() %>%
 kmeans(centers = 3, nstart = 20)
 
-res_km4 <- pca_data %>%
+res_km4 <- data_num %>%
 scale() %>%
 kmeans(centers = 4, nstart = 20)
 ```
@@ -296,11 +271,11 @@ kmeans(centers = 4, nstart = 20)
 ```{r}
 par(mfrow=c(2,1))
 res_km3 %>%
-fviz_cluster(data = pca_data ,
+fviz_cluster(data = data_num ,
 ggtheme = theme_gray())
 
 res_km4 %>%
-fviz_cluster(data = pca_data ,
+fviz_cluster(data = data_num ,
 ggtheme = theme_gray())
 ```
 
@@ -308,13 +283,13 @@ ggtheme = theme_gray())
 data[,"cluster3"] <- res_km3$cluster
 data[,"cluster4"] <- res_km4$cluster
   
-table(data$cluster3, data$category_code)
-table(data$cluster3, data$status)
-table(data$cluster3, data$state_code)
 
-table(data$cluster4, data$category_code)
+table(data$cluster3, data$status)
+
+
+
 table(data$cluster4, data$status)
-table(data$cluster4, data$state_code)
+
 ```
 The clusters don't seem to be separated by either category_code, active or state_code
 
