@@ -26,10 +26,6 @@ Then we divide the variable "first_milestone" into intervals (8), as we want to 
 
 Moving on to the exploratory data analysis (EDA) we choose the variables that we find most relevant. This includes "funding_total_usd", "funding_rounds", "relationships","age_first_funding_year", "milestones" and "status". 
 
-#Conclusions
-
-
-
 
 
 
