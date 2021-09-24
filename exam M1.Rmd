@@ -724,7 +724,252 @@ caret::confusionMatrix(data = pred_xg, reference= truth_xg )
 
 ```
 
+## TEEEEEST
+### Format data
+Prøver lige en ny visualisering. Først, hvad type er dataet
+```{r}
+library(visdat)
 
+vis_dat(data)
+```
+Hvad med NA's?
+```{r}
+vis_miss(data)
+```
+Alternativt, i tekst i stedet
+```{r}
+is.na(data) %>% colSums()
+```
+
+### Data splitting
+
+A **training dataset** is a dataset of examples used during the learning process and is used to fit the models. 
+A **test dataset** is a dataset that is independent of the training dataset and is used to evaluate the performance of the final model. If a model fit to the training dataset also fits the test dataset well, minimal overfitting has taken place. A better fitting of the training dataset as opposed to the test dataset usually points to overfitting.
+
+```{r}
+data_train #75% af observationer
+data_test #25% af observationer
+```
+### Data exploration
+#### Create data copy
+
+Først tilføjes latitude og longitude.
+
+```{r}
+data2 <- read_csv("startup data.csv", 
+         col_types = cols(founded_at = col_date(format = "%m/%d/%Y"), 
+                          first_funding_at = col_date(format = "%m/%d/%Y"), 
+                          last_funding_at = col_date(format = "%m/%d/%Y")))
+
+data2 %<>%
+  select(!c(`Unnamed: 0`, `Unnamed: 6`, state_code.1, object_id, avg_participants, has_roundA, has_roundB, has_roundC, has_roundD, zip_code, id, city, name, labels))
+
+```
+
+Fordi vi ikke vil ændre på dataet, vi vil bare lege lidt med det.
+```{r}
+data_explore <- data2
+```
+
+Nu laver vi et kort over observationerne adskilt med farve ift. status
+```{r}
+data_explore %>% 
+  ggplot(aes(x = longitude, y = latitude)) +
+  geom_point(aes(size = 1, color = status), 
+             alpha = 0.4)
+```
+
+```{r}
+library(ggmap)
+
+qmplot(x = longitude, 
+       y = latitude, 
+       data = data_explore, 
+       geom = "point", 
+       color = status, 
+       size = 0.1, #kan vi godt opdele efter en kategori også
+       alpha = 0.4) +
+  scale_alpha(guide = 'none') # don't show legend for alpha
+```
+Som om vi er blevet vildledt.
+
+
+## Validation set
+
+Using only two partitions may be insufficient when doing many rounds of hyperparameter tuning (which we don’t perform in this tutorial but it is always recommended to use a validation set).
+
+Derfor laver vi et validation set
+We use k-fold crossvalidation to build a set of 5 validation folds with the function vfold_cv. We also use stratified sampling:
+
+```{r}
+cv_folds <-
+ vfold_cv(data_train, 
+          v = 5, 
+          strata = y) 
+```
+
+
+## Model building
+### Logistic regression
+```{r}
+log_spec <- # your model specification
+  logistic_reg() %>%  # model type
+  set_engine(engine = "glm") %>%  # model engine
+  set_mode("classification") # model mode
+
+# Show your model specification
+log_spec
+```
+
+### Random forest
+```{r}
+library(ranger)
+
+rf_spec <- 
+  rand_forest() %>% 
+  set_engine("ranger", importance = "impurity") %>% 
+  set_mode("classification")
+
+rf_spec
+```
+
+When we set the engine, we add importance = "impurity". This will provide variable importance scores for this model, which gives some insight into which predictors drive model performance.
+
+### Boosted tree (XGBOOST)
+```{r}
+xgb_spec <- 
+  boost_tree() %>% 
+  set_engine("xgboost") %>% 
+  set_mode("classification")
+
+xgb_spec
+```
+
+### K-nearest neighbor
+```{r}
+knn_spec <- 
+  nearest_neighbor(neighbors = 4) %>% # we can adjust the number of neighbors 
+  set_engine("kknn") %>% 
+  set_mode("classification") 
+
+knn_spec
+```
+
+### Neural network
+```{r}
+library(keras)
+
+nnet_spec <-
+  mlp() %>%
+  set_mode("classification") %>% 
+  set_engine("keras", verbose = 0) 
+
+nnet_spec
+```
+
+We set the engine-specific verbose argument to prevent logging the results.
+
+## Create workflows
+A workflow is an object that can bundle together your pre-processing recipe, modeling, and even post-processing requests (like calculating the RMSE).
+
+### Logistic regression
+```{r}
+log_wflow <- # new workflow object
+ workflow() %>% # use workflow function
+ add_recipe(data_recipe) %>%   # use the new recipe
+ add_model(log_spec)   # add your model spec
+
+# show object
+log_wflow
+```
+
+Vi har 3 recipe steps mindre end de har
+
+### Random forest
+```{r}
+rf_wflow <-
+ workflow() %>%
+ add_recipe(data_recipe) %>% 
+ add_model(rf_spec) 
+
+rf_wflow
+```
+
+### XGBoost
+```{r}
+xgb_wflow <-
+ workflow() %>%
+ add_recipe(data_recipe) %>% 
+ add_model(xgb_spec)
+
+xgb_wflow
+```
+
+### K-nearest neighbor
+```{r}
+knn_wflow <-
+ workflow() %>%
+ add_recipe(data_recipe) %>% 
+ add_model(knn_spec)
+
+knn_wflow
+```
+
+### Neural network
+```{r}
+nnet_wflow <-
+ workflow() %>%
+ add_recipe(data_recipe) %>% 
+ add_model(nnet_spec)
+
+nnet_wflow
+```
+
+## Evaluate models
+Her bruger vi vores validation set
+
+### Logistic regression
+We use our workflow object to perform resampling. Furthermore, we use metric_set()to choose some common classification performance metrics provided by the yardstick package. Visit yardsticks reference to see the complete list of all possible metrics.
+
+Note that Cohen’s kappa coefficient (κ) is a similar measure to accuracy, but is normalized by the accuracy that would be expected by chance alone and is very useful when one or more classes have large frequency distributions. The higher the value, the better.
+
+```{r}
+data_y_num <- data
+data_y_num
+
+data_y_num %<>%
+  mutate(status= ifelse(status = "closed", 0,1))
+```
+
+```{r}
+data_y_num
+```
+
+
+```{r}
+log_res <- 
+  log_wflow %>% 
+  fit_resamples(
+    resamples = cv_folds, 
+    metrics = metric_set(
+      recall, precision, f_meas, 
+      accuracy, kap,
+      roc_auc, sens, spec),
+    control = control_resamples(
+      save_pred = TRUE)
+    ) 
+?metric_set
+
+data_recipe
+
+ifelse()
+```
+
+Tror vi bliver nødt til at 
+
+
+
+## leg med far
 ```{r}
 
 lr_auc <- 
@@ -739,6 +984,9 @@ autoplot(lr_auc)
 library(ROCR)
 pred_dt
 truth_dt
+
+pred_dt %>%
+  mutate(pred_dt = filter(pred_dt == ))
 #data(ROCR.simple)
 #df <- data.frame(ROCR.simple)
 pred_dt_2 <- prediction(pred_dt, truth_dt)
