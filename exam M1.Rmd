@@ -7,6 +7,8 @@ output: html_document
 
 
 ```{r}
+#(1)
+
 library(tidyverse)
 
 library(lubridate)
@@ -42,6 +44,8 @@ library(skimr)
 # load data
 
 ```{r}
+#(2)
+
 data <- read_csv("startup data.csv", 
 col_types = cols(founded_at = col_date(format = "%m/%d/%Y"), 
 first_funding_at = col_date(format = "%m/%d/%Y"), 
@@ -52,6 +56,8 @@ last_funding_at = col_date(format = "%m/%d/%Y")))
 
 We take a quick look at the data
 ```{r}
+#(3)
+
 glimpse(data)
 ```
 
@@ -60,6 +66,7 @@ We start by removing columns we dont know what is as they are not described when
 Also some of the columns show the same thing, 
 
 ```{r}
+#(4)
 
 data %<>%
   select(!c(`Unnamed: 0`, `Unnamed: 6`, state_code.1, object_id, avg_participants))
@@ -71,12 +78,14 @@ glimpse(data)
 To look how wholesome the data is we skim the data
 
 ```{r}
+#(5)
 
 skim(data)
 
 ```
 
 ```{r}
+#(6)
 
 data %<>%
   mutate(closed_at= replace_na(closed_at, "still going"))
@@ -85,11 +94,14 @@ data %<>%
 
 
 ```{r}
+#(7)
+
 skim(data)
 ```
 
 
 ```{r}
+#(8)
 
 #We make intervals for first milestone
 data %<>%
