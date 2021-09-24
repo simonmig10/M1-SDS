@@ -1,4 +1,13 @@
-```{r}
+---
+title: "Exam 1"
+output:
+    pdf_document:
+        latex_engine: xelatex
+ 
+  
+---
+
+```{r, message = FALSE}
 library(tidyverse)
 
 library(lubridate)
@@ -35,7 +44,7 @@ library(VIM)
 
 # load data
 
-```{r,chunk-label}
+```{r}
 data <- read_csv("startup data.csv", 
 col_types = cols(founded_at = col_date(format = "%m/%d/%Y"), 
 first_funding_at = col_date(format = "%m/%d/%Y"), 
@@ -210,19 +219,22 @@ res_pca %>%
 
 eig.val = get_eigenvalue(res_pca); eig.val
 ```
-We can see the elbow shows the optimal dimensions are three dimensions with almost 65% explained variance. If we only look at the eigenvalues then our rule of thumb is to pick the dimensions with an eigenvalue >=1, which in this case is two dimensions. Those two dimensions only account for 52% of the total variance, which isn't partically high.
-    Then we visualize our reduced data in two dimensions.
+We can see the elbow shows the optimal dimensions are three dimensions with almost 65% explained variance. If we only look at the eigenvalues then our rule of thumb is to pick the dimensions with an eigenvalue >=1, which in this case is two dimensions. Those two dimensions only account for 52% of the total variance, which isn't that high.
+   As it is hard to understand a plot with three dimensions we visualize our reduced data in two dimensions.
 
-```{r, fig.height=7, fig.width=9, warning=FALSE}
+```{r}
 res_pca %>%
-  fviz_pca_biplot(alpha.ind = "cos2",
-                  col.ind = "contrib",
-                  gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-                  geom = "point",
-                  ggtheme = theme_gray())
+  fviz_pca_var(alpha.var = "cos2",
+               col.var = "contrib",
+               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+               repel = TRUE,
+               ggtheme = theme_gray()) 
 ```
-From the plot we can see, that the x-axis split our six variables into two groups so to say. Where the ones involving funding, funding rounds, milestone and relationships are above the x-axis and our two variables involving the age of a firm during its first and last funding is below. 
 
+From the plot we can see, that the x-axis split our six variables into two groups. Where the ones involving funding or money is below the x_axis and variables like milestones, relationships and is_0:3 are above the x-axis. Our last variable whether a firm has been top500 lies almost on the x-axis, which indicates that it is mostly explained by the first dimension.
+ It can be said about our variables, that the less opaque the arrow the higher the cos2 and thereby a higher representation of the variable in the principal components we have used eg. funding total USD is not as well explained by the first two principal components as the other variables. Contrib show almost the same as it is just (cos2*100)/(total cos2 of the component), that is why we see the one which are the most opaque also being the one with a blue/greenish color. 
+
+Now we plot all our observations in the two dimensional space and try to split them up by there status of either being aquired or closed.
 ```{r, fig.height=7, fig.width=9, warning=FALSE}
 res_pca %>%
 fviz_pca_biplot(alpha.ind = "cos2",
@@ -233,7 +245,11 @@ ggtheme = theme_gray())
 
 ```
 
+The plot shows that the red which is the firms who have been aquired tends to be more to the right, which indicates that they have reach more milestones, had more relationships and had a higher tendency to be a top500 start up. But to conclude the PCA doesnt really seperate the firms by status.
+   Next we are going to use another dimensionality reduction method namely umap to see if it does a better job.
+   
 ## UMAP
+First we create the UMAP object and remember to scale it:
 ```{r}
 res_umap <- data_num  %>%
 umap(n_neighbors = 15,
@@ -242,364 +258,148 @@ min_dist = 0.01,
 scale = TRUE)
 ```
 
+Then we plot it in a two dimensional space and fill our observations by status:
+
 ```{r}
 res_umap %>%
 as_tibble() %>%
 ggplot(aes(x = V1, y = V2, fill = data$status)) +
 geom_point(shape = 21, alpha = 0.5)
 ```
-## Clustering
 
+UMAP seem to separate the observations better as we kinda have 4 clusters here. But they are not separated that well between closed and acquired. It does however seem like most of the firms which has been acquired is to the left and the top left of the plot.
+
+## K-means clustering
+
+Now we wanna look at clustering of our data to see, whether our data are clustered by status or not, we make clusters both on our data and on our pca data and we both make K-means clustering and hierachical clustering.
+   First K-means clustering on our dataset.
 ```{r}
 data_num %>%
 scale() %>%
 fviz_nbclust(kmeans, method = "wss")
 ```
-Seems like the optimal number of clusters is somewhere around 3 or 4 clusters, so we try both
+Seems like the optimal number of clusters is somewhere around 4 clusters, but as we wanna show whether we can make two clusters which are separated by status which only has two different values "acquired" and "closed" we move on with two clusters.
 
 ```{r}
-res_km3 <- data_num %>%
+res_km2 <- data_num %>%
 scale() %>%
-kmeans(centers = 3, nstart = 20)
-
-res_km4 <- data_num %>%
-scale() %>%
-kmeans(centers = 4, nstart = 20)
+kmeans(centers = 2, nstart = 20)
 ```
 
 
 ```{r}
-par(mfrow=c(2,1))
-res_km3 %>%
-fviz_cluster(data = data_num ,
-ggtheme = theme_gray())
-
-res_km4 %>%
+res_km2 %>%
 fviz_cluster(data = data_num ,
 ggtheme = theme_gray())
 ```
 
+The two clusters created by the K-means doesn't seem to separate our data points between status, which is unfortunate, but we still take a look of the result in a table by extracting the cluster number and putting into our data set.
+
 ```{r}
-data[,"cluster3"] <- res_km3$cluster
-data[,"cluster4"] <- res_km4$cluster
+data[,"cluster2"] <- res_km2$cluster
   
-
-table(data$cluster3, data$status)
-
-
-
-table(data$cluster4, data$status)
+table(data$cluster2, data$status)
 
 ```
-The clusters don't seem to be separated by either category_code, active or state_code
+The clusters don't seem to be separated by the status of the firm at all. We can see that cluster 1 both has most firm who have been acquired and closed.
+
+Now we try to run K-means again this time on the dimensionalty reduced data, so we extracted the first two components and put them into a new data set called pca_data. 
 
 
+## K-means clustering after dimensionality reduction
 ```{r}
-data[,"pca1"] <- res_pca$ind$coord[,1]
-data[,"pca2"] <- res_pca$ind$coord[,2]
-```
+pca1 = res_pca$ind$coord[,1]
+pca2 = res_pca$ind$coord[,2]
+data_pca = data.frame(pca1, pca2)
 
-
-```{r}
-par(mfrow=c(2,1))
-data %>%
-ggplot(aes(x=pca1, y=pca2, color=factor(cluster3)))+
-geom_point()
-data %>%
-ggplot(aes(x=pca1, y=pca2, color=factor(cluster4)))+
-geom_point()
-```
-## Clustering after dimensionality reduction
-```{r}
-data_pca= data%>%
-  select(pca1, pca2)
 
 data_pca %>%
   scale() %>%
   fviz_nbclust(kmeans, method = "wss")
 ```
 
-We can now see the elbow is formed at 3 clusters, so we use 3.
+We can now see the elbow is formed at 3 clusters, but we still move on with 2 as we wanna try and separate by status.
 
 ```{r}
 
 res_km_pca1 <- data_pca %>% 
   scale() %>% 
-  kmeans(centers = 4, nstart = 20)  
+  kmeans(centers = 2, nstart = 20)  
 ```
 
-```{r}
-res_km_pca1 
-```
 
 ```{r,,fig.width=15,fig.height=10,fig.align='center'}
 res_km_pca1 %>% 
   fviz_cluster(data = data_pca,
                ggtheme = theme_gray())  
 
-#Supervised ML Classification of aquired and closed
 ```
 
-
-# SML
-```{r}
-data %>% head()
-```
+Clustering with the pca data seems to make two clusters who are much more separated, so we again check in a table to to see how well they are separated by status
 
 ```{r}
-data %>% glimpse()
+data[,"cluster_pca2"] <- res_km_pca1$cluster
+  
+table(data$cluster_pca2, data$status)
+table(data$cluster2, data$status)
+```
+Running it on the dimensionality reduced data seems to have separated the firms by status a little worse then by running it on the entire data. We see the acquired firms are almost identical between the two, but the number of closed firm in each clusters has come closer to each other instead of farther away.
 
+Now we will try to use a different clustering method namely hierachical clustering.
+
+## Hierarchical clustering
+
+We make the hclust object and put stand equal to true as it will scale our data.
+```{r}
+res_hc = data_num %>% 
+  hcut(hc_func = "hclust", k = 2, stand = TRUE)
 ```
 
+Then we make a dendogram
 
 ```{r}
-data_sml= data %>%
-  rename(y = status) %>%
-  select(y, age_first_funding_year, age_last_funding_year, age_first_milestone_year, age_last_milestone_year, relationships, funding_rounds, funding_total_usd, milestones, is_top500, has_angel, is_CA, is_NY, is_MA, is_TX, is_software, is_web) 
-
-glimpse(data_sml)
+res_hc %>% 
+  fviz_dend(rect = TRUE, cex = 0.5)
 ```
-##EDA sml
-
-```{r,fig.height=5,fig.width=12.5}
-data_sml %>%
-  gather(variable, value, -y) %>% # Note: At one point do pivot_longer instead
-  ggplot(aes(y = as.factor(variable), 
-             fill =  as.factor(y), 
-             x = percent_rank(value)) ) +
-  ggridges::geom_density_ridges(alpha = 0.75)
+The dendogram can be a bit of a mess when you deal with a high number of observations, but we can clearly see that by dealing with only two clusters we separate our data high up in the dendogram, which basiclly means that the two clusters are hard to distinguish between, which partly explains why we are having a hard time separating our firms by status.
+   But as before we can plot our clusters in two dimensional space
+  
+```{r}
+res_hc %>% 
+  fviz_cluster(data = data_num, ggtheme = theme_gray())
 ```
-## Data Preprocessing
-
-
-### Training & Test split
+The plot in it self looks like the two clusters a fairly overlapped which might be due to us forcing 2 clusters on it instead 4 as the screeplot showed, but let us take a look at how well it separated the firms by status.
 
 ```{r}
-data_split <- initial_split(data_sml, prop = 0.75, strata = y)
+data[,"cluster_hclust2"] <- res_hc$cluster
+  
+table(data$cluster_hclust2, data$status)
+```
+The hierarchical clustering of the data seems to do a better job of at least putting the acquired firms in different clusters, although the closed are still fairly spread out.
+   Lastly let us try hclust on the PCA data.
+   
 
-data_train <- data_split  %>%  training()
-data_test <- data_split %>% testing()
+## Hierarchical clustering after dimensionality reduction
+
+We could do this as we did with K-means but hclust has this build in function who knows where to get the PCA's and then cluster them.
+```{r}
+res_hcpc = res_pca %>% 
+  HCPC(nb.clust = 2, graph = FALSE)
 ```
 
-
-### Preprocessing recipe
-
-Tror den sletter alle categoriske variable ved ikk om der skal laves en step_dummy for categroical?
+Then we plot it
+```{r}
+res_hcpc %>% 
+  plot(choice = "map")
+```
+The plot is a bit of a mess because it also plot the trees and it is hard to distinguish were the black dots starts and where the red begins, so it seems like the clusters are not ideal, this might again be due to the fact stated above.
 
 ```{r}
-
-data_recipe <- data_train %>%
-  recipe(y ~.) %>%
-  step_log(funding_total_usd) %>% #Myb just delete this one
-  step_center(all_numeric(), -all_outcomes()) %>%
-  step_scale(all_numeric(), -all_outcomes()) %>%
-  step_dummy(all_nominal(), -all_outcomes()) %>%
-  na.omit(all_predictors()) %>% #  knn inputation of missing values
-  prep()
+data[,"cluster_hclust_pca2"] <- res_hcpc$data.clust$clust
+  
+table(data$cluster_hclust_pca2, data$status)
+table(data$cluster_hclust2, data$status)
 ```
+It can be seen that running hierarchical clustering both before and after dimensionality reduction seems to yield almost identical outcomes. Cluster 1 has just become bigger by two closing firms and that is the only difference.
+   The variables used in this analysis wasnt able to capture the effects that are crucial to whether a start up is getting acquired or closed. This might be due to that fact that a lot more variables plays a part in this and maybe also a bit of luck, which cant be quantified.
 
-### Defining the models
-
-#### Logistic Regression
-
-```{r}
-model_lg <- logistic_reg(mode = 'classification') %>%
-  set_engine('glm', family = binomial) 
-```
-
-#### Decision tree
-
-```{r}
-model_dt <- decision_tree(mode = 'classification',
-                          cost_complexity = tune(),
-                          tree_depth = tune(), 
-                          min_n = tune()
-                          ) %>%
-  set_engine('rpart') 
-```
-
-#### Extreme Gradient Boosted Tree (XGBoost)
-
-```{r}
-model_xg <- boost_tree(mode = 'classification', 
-                       trees = 100,
-                       mtry = tune(), 
-                       min_n = tune(), 
-                       tree_depth = tune(), 
-                       learn_rate = tune()
-                       ) %>%
-  set_engine("xgboost") 
-```
-
-#### Define workflow
-
-```{r}
-workflow_general <- workflow() %>%
-  add_recipe(data_recipe) 
-
-workflow_lg <- workflow_general %>%
-  add_model(model_lg)
-
-workflow_dt <- workflow_general %>%
-  add_model(model_dt)
-
-workflow_xg <- workflow_general %>%
-  add_model(model_xg)
-```
-
-
-
-### Hyperparameter Tuning
-
-#### Validation Sampling (N-fold crossvlidation)
-
-```{r}
-data_resample <- data_train %>% 
-  vfold_cv(strata = y,
-           v = 3,
-           repeats = 3)
-```
-
-#### Hyperparameter Tuning: Decision Tree
-
-Need to find out what the error is here!
-
-```{r}
-tune_dt <-
-  tune_grid(
-    workflow_dt,
-    resamples = data_resample,
-    grid = 5
-  )
-```
-
-```{r}
-tune_dt %>% autoplot()
-```
-
-```{r}
-best_param_dt <- tune_dt %>% select_best(metric = 'roc_auc')
-best_param_dt
-```
-
-```{r}
-tune_dt %>% show_best(metric = 'roc_auc', n = 1)
-```
-
-
-#### Hyperparameter Tuning: Random Forest
-
-
-
-```{r}
-
-tune_xg <-
-  tune_grid(
-    workflow_xg,
-    resamples = data_resample,
-    grid = 10
-  )
-```
-
-```{r}
-tune_xg %>% autoplot()
-```
-
-```{r}
-best_param_xg <- tune_xg %>% select_best(metric = 'roc_auc')
-best_param_xg
-```
-
-```{r}
-tune_xg %>% show_best(metric = 'roc_auc', n = 1)
-```
-
-
-#### Fit models with tuned hyperparameters
-
-
-```{r}
-workflow_final_dt <- workflow_dt %>%
-  finalize_workflow(parameters = best_param_dt)
-
-workflow_final_xg <- workflow_xg %>%
-  finalize_workflow(parameters = best_param_xg)
-```
-
-```{r}
-fit_lg <- workflow_lg %>%
-  fit(data_train)
-
-fit_dt <- workflow_final_dt %>%
-  fit(data_train)
-
-fit_xg <- workflow_final_xg %>%
-  fit(data_train)
-```
-
-#### Compare performance
-
-```{r}
-pred_collected <- tibble(
-  truth = data_train %>% pull(y) %>% as.factor(),
-  #base = mean(truth),
-  lg = fit_lg %>% predict(new_data = data_train) %>% pull(.pred_class),
-  dt = fit_dt %>% predict(new_data = data_train) %>% pull(.pred_class),
-  xg = fit_xg %>% predict(new_data = data_train) %>% pull(.pred_class),
-  ) %>% 
-  pivot_longer(cols = -truth,
-               names_to = 'model',
-               values_to = '.pred')
-```
-
-```{r}
-pred_collected %>% head()
-```
-
-
-```{r}
-pred_collected %>%
-  group_by(model) %>%
-  accuracy(truth = truth, estimate = .pred) %>%
-  select(model, .estimate) %>%
-  arrange(desc(.estimate))
-```
-
-```{r}
-pred_collected %>%
-  group_by(model) %>%
-  bal_accuracy(truth = truth, estimate = .pred) %>%
-  select(model, .estimate) %>%
-  arrange(desc(.estimate))
-```
-
-Surprisingly, here the less complex model seems to hve the edge!
-
-
-#### Final prediction
-
-So, now we are almost there. Since we know we will use the random forest, we only have to predict on our test sample and see how we fair...
-
-```{r}
-fit_last_dt <- workflow_final_dt %>% last_fit(split = data_split)
-```
-
-```{r}
-fit_last_dt %>% collect_metrics()
-```
-
-#### Variable importance
-
-```{r}
-fit_last_dt %>% 
-  pluck(".workflow", 1) %>%   
-  pull_workflow_fit() %>% 
-  vip::vip(num_features = 11)
-```
-
-
-```{r}
-fit_xg %>%
-  pull_workflow_fit() %>%
-  vip::vip(num_features = 20)
-```
