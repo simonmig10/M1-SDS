@@ -49,6 +49,14 @@ data <- read_csv("startup data.csv",
 col_types = cols(founded_at = col_date(format = "%m/%d/%Y"), 
 first_funding_at = col_date(format = "%m/%d/%Y"), 
 last_funding_at = col_date(format = "%m/%d/%Y")))
+
+data %>% 
+  group_by(state_code) %>% 
+  count() %>% 
+  arrange(desc(n))
+
+data_state = data %>% 
+  mutate(state_code = ifelse(state_code == "CA", "CA", ifelse(state_code == "NY", "NY", ifelse(state_code == "MA", "MA","other_state"))))
 ```
 
 # data cleaning / EDA
@@ -173,7 +181,7 @@ data %<>%
 
 We pick the interval zero to three years, so we drop the rest, which means that firms achieved their first milestone when they were between 0 and 3 years old. We pick this interval because we wanna investigate whether it is positive or not in terms of getting acquired for a firm to get their first milestone quick eg. in the first couple of years.
 
-And this conclude our variable selection which now will be explained more thoroughly below.
+And this conclude our variable selection which now will be explained more thoroughly below. Here we could have checked for outliers and removed them, but outliers are hard to spot in a data set like this, because in eg total_funding_usd if one has put one "0" to many then the value of coure will look big, but dealing with values this large a company could just aswell have gotten that much in total funding, so we have decided not to remove any observations simlply because the distribution in reality can differ a lot.
 
 ```{r}
 names = colnames(data)
@@ -238,7 +246,7 @@ Now we plot all our observations in the two dimensional space and try to split t
 ```{r, fig.height=7, fig.width=9, warning=FALSE}
 res_pca %>%
 fviz_pca_biplot(alpha.ind = "cos2",
-habillage = data %>% pull(status) %>% factor(),
+habillage = data_state %>% pull(status) %>% factor(),
 addEllipses = TRUE,
 geom = "point",
 ggtheme = theme_gray())
