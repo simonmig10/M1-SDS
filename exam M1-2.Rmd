@@ -38,6 +38,14 @@ library(tidymodels)
 library(skimr)
 
 library(VIM)
+
+library(visdat)
+
+library(ggmap)
+
+library(ranger)
+
+library(vip)
 ```
 
 
@@ -56,8 +64,6 @@ last_funding_at = col_date(format = "%m/%d/%Y")))
 ### Format data
 Prøver lige en ny visualisering. Først, hvad type er dataet
 ```{r}
-library(visdat)
-
 vis_dat(data_start)
 ```
 Hvad med NA's?
@@ -73,8 +79,6 @@ We can look how companies perfrom geograficly
 
 
 ```{r}
-library(ggmap)
-
 qmplot(x = longitude, 
        y = latitude, 
        data = data_start, 
@@ -557,8 +561,6 @@ model_knn <-
 
 ### Random forest
 ```{r}
-library(ranger)
-
 model_rf <- 
   rand_forest() %>% 
   set_engine("ranger", importance = "impurity") %>% 
@@ -1141,8 +1143,6 @@ last_fit_xgb %>%
 
 
 ```{r}
-library(vip)
-
 last_fit_xgb %>% 
   pluck(".workflow", 1) %>%   
   pull_workflow_fit() %>% 
