@@ -724,6 +724,17 @@ caret::confusionMatrix(data = pred_xg, reference= truth_xg )
 
 ```
 
+
+
+
+
+
+
+
+
+
+
+
 ## TEEEEEST
 ### Format data
 Prøver lige en ny visualisering. Først, hvad type er dataet
@@ -851,9 +862,9 @@ cv_folds <-
 
 ```{r}
 dt_spec <- decision_tree(mode = 'classification',
-                          cost_complexity = tune(),
-                          tree_depth = tune(), 
-                          min_n = tune()
+                          cost_complexity = 0.1,
+                          tree_depth = 5, 
+                          min_n = 5
                           ) %>%
   set_engine('rpart') 
 ```
