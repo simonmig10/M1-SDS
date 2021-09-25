@@ -462,6 +462,8 @@ glimpse(data_sml)
 ### Training & Test split
 
 ```{r}
+set.seed(123)
+
 data_split <- initial_split(data_sml, prop = 0.75, strata = y)
 
 data_train <- data_split  %>%  training()
@@ -1119,7 +1121,7 @@ rf_res %>%
 
 
 ```{r}
-last_fit_xgb <- last_fit(xgb_wflow, 
+last_fit_xgb <- last_fit(workflow_final_xg, 
                         split = data_split,
                         metrics = metric_set(
                           recall, precision, f_meas, 
@@ -1145,7 +1147,7 @@ last_fit_xgb %>%
 ```
 
 ```{r}
-last_fit_rf %>%
+last_fit_xgb %>%
   collect_predictions() %>% 
   conf_mat(y, .pred_class) %>% 
   autoplot(type = "heatmap")
@@ -1154,7 +1156,7 @@ last_fit_rf %>%
 ```
 
 ```{r}
-last_fit_rf %>% 
+last_fit_xgb %>% 
   collect_predictions() %>% 
   roc_curve(y, .pred_acquired) %>% 
   autoplot()
