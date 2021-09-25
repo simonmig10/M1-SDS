@@ -66,17 +66,29 @@ Prøver lige en ny visualisering. Først, hvad type er dataet
 ```{r}
 vis_dat(data_start)
 ```
+
 Hvad med NA's?
 ```{r}
 vis_miss(data_start)
 ```
+
 Alternativt, i tekst i stedet
 ```{r}
 is.na(data_start) %>% colSums()
 ```
 
-We can look how companies perfrom geograficly 
 
+Fjerner lige de observationer, der ikke ligger i USA.
+```{r}
+data_start %>% 
+  ggplot(aes(x = longitude, y = latitude)) +
+  geom_point(color = "cornflowerblue")
+
+data_start %<>%
+  filter(longitude < -40)
+```
+
+We can look how companies perform geographically 
 
 ```{r}
 qmplot(x = longitude, 
@@ -84,7 +96,7 @@ qmplot(x = longitude,
        data = data_start, 
        geom = "point", 
        color = status, 
-       size = 0.1, #kan vi godt opdele efter en kategori også
+       size = funding_total_usd, #har lige kørt efter denne variabel så vi kan se hvor de store ligger
        alpha = 0.4) +
   scale_alpha(guide = 'none') # don't show legend for alpha
 ```
