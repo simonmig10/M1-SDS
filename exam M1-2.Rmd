@@ -44,7 +44,7 @@ library(VIM)
 # load data
 
 ```{r}
-data <- read_csv("startup data.csv", 
+data_start <- read_csv("startup data.csv", 
 col_types = cols(founded_at = col_date(format = "%m/%d/%Y"), 
 first_funding_at = col_date(format = "%m/%d/%Y"), 
 last_funding_at = col_date(format = "%m/%d/%Y")))
@@ -52,9 +52,43 @@ last_funding_at = col_date(format = "%m/%d/%Y")))
 
 # data cleaning / EDA
 
+
+### Format data
+Prøver lige en ny visualisering. Først, hvad type er dataet
+```{r}
+library(visdat)
+
+vis_dat(data_start)
+```
+Hvad med NA's?
+```{r}
+vis_miss(data_start)
+```
+Alternativt, i tekst i stedet
+```{r}
+is.na(data_start) %>% colSums()
+```
+
+We can look how companies perfrom geograficly 
+
+
+```{r}
+library(ggmap)
+
+qmplot(x = longitude, 
+       y = latitude, 
+       data = data_start, 
+       geom = "point", 
+       color = status, 
+       size = 0.1, #kan vi godt opdele efter en kategori også
+       alpha = 0.4) +
+  scale_alpha(guide = 'none') # don't show legend for alpha
+```
+Tror myb der er NA's  i det data her ved ik om det does something
+
 We take a quick look at the data
 ```{r}
-skim(data)
+skim(data_start)
 ```
 
 
@@ -62,7 +96,7 @@ We start by removing columns there are undefined when loading the dataset and co
 
 ```{r}
 
-data %<>%
+data = data_start %>%
   select(!c(`Unnamed: 0`, `Unnamed: 6`, state_code.1, object_id, avg_participants, has_roundA, has_roundB, has_roundC, has_roundD, zip_code, id, city, name, latitude, longitude, labels))
 
 ```
@@ -435,8 +469,14 @@ data_test <- data_split %>% testing()
 ```
 
 
+### EDA on the training data
+
+
+
 ### Preprocessing recipe
 
+
+step_log bruges hvis variablen er lid scewed!
 
 ```{r}
 
@@ -622,6 +662,8 @@ tune_xg %>% show_best(metric = 'roc_auc', n = 1)
 #### Fit models with tuned hyperparameters
 
 
+
+
 ```{r}
 workflow_final_dt <- workflow_dt %>%
   finalize_workflow(parameters = best_param_dt)
@@ -630,7 +672,13 @@ workflow_final_xg <- workflow_xg %>%
   finalize_workflow(parameters = best_param_xg)
 ```
 
+## Evaluate models
+Her bruger vi vores validation set
 
+### Logistic regression
+We use our workflow object to perform resampling. Furthermore, we use metric_set()to choose some common classification performance metrics provided by the yardstick package. Visit yardsticks reference to see the complete list of all possible metrics.
+
+Note that Cohen’s kappa coefficient (κ) is a similar measure to accuracy, but is normalized by the accuracy that would be expected by chance alone and is very useful when one or more classes have large frequency distributions. The higher the value, the better.
 
 ```{r}
 
@@ -646,8 +694,48 @@ log_res <-
       save_pred = TRUE)
     ) 
 
+log_res %>% collect_metrics(summarize = TRUE)
 ```
 
+
+#### Model coefficients
+
+```{r}
+# save model coefficients for a fitted model object from a workflow
+
+get_model <- function(x) {
+  pull_workflow_fit(x) %>% tidy()
+}
+
+# same as before with one exception
+log_res_2 <- 
+  workflow_lg %>% 
+  fit_resamples(
+    resamples = data_resample, 
+    metrics = metric_set(
+      recall, precision, f_meas, 
+      accuracy, kap,
+      roc_auc, sens, spec),
+    control = control_resamples(
+      save_pred = TRUE,
+      extract = get_model) # use extract and our new function
+    ) 
+```
+
+```{r}
+log_res_2$.extracts[[1]][[1]]
+```
+
+```{r}
+all_coef <- map_dfr(log_res_2$.extracts, ~ .x[[1]][[1]])
+```
+
+Show all of the resample coefficients for a single predictor:
+```{r}
+filter(all_coef, term == "relationships")
+```
+
+### Dicision tree
 
 
 ```{r}
@@ -665,6 +753,8 @@ dt_res <-
 dt_res %>% collect_metrics(summarize = TRUE)
 ```
 
+### XGboost
+
 ```{r}
 xgb_res <- 
   workflow_final_xg %>% 
@@ -680,6 +770,7 @@ xgb_res <-
 xgb_res %>% collect_metrics(summarize = TRUE)
 ```
 
+### KNN
 ```{r}
 knn_res <- 
   workflow_knn %>% 
@@ -694,6 +785,8 @@ knn_res <-
 
 knn_res %>% collect_metrics(summarize = TRUE)
 ```
+### Random forrest
+
 ```{r}
 rf_res <-
   workflow_rf %>% 
@@ -803,473 +896,7 @@ model_comp %>%
 
 # choose model
 
-
-
-```{r}
-pred_collected <- tibble(
-  truth = data_train %>% pull(y) %>% as.factor(),
-  #base = mean(truth),
-  lg = fit_lg %>% predict(new_data = data_train) %>% pull(.pred_class),
-  dt = fit_dt %>% predict(new_data = data_train) %>% pull(.pred_class),
-  xg = fit_xg %>% predict(new_data = data_train) %>% pull(.pred_class),
-  ) %>% 
-  pivot_longer(cols = -truth,
-               names_to = 'model',
-               values_to = '.pred')
-```
-
-```{r}
-pred_collected %>% head()
-```
-
-
-
-
-```{r}
-pred_collected %>%
-  group_by(model) %>%
-  accuracy(truth = truth, estimate = .pred) %>%
-  select(model, .estimate) %>%
-  arrange(desc(.estimate))
-```
-
-```{r}
-pred_collected %>%
-  group_by(model) %>%
-  bal_accuracy(truth = truth, estimate = .pred) %>%
-  select(model, .estimate) %>%
-  arrange(desc(.estimate))
-
-
-```
-
-Surprisingly, here the less complex model seems to hve the edge!
-
-
-#### Final prediction
-
-So, now we are almost there. Since we know we will use the random forest, we only have to predict on our test sample and see how we fair...
-
-```{r}
-fit_last_dt <- workflow_final_dt %>% last_fit(split = data_split)
-```
-
-```{r}
-fit_last_dt %>% collect_metrics()
-```
-
-#### Variable importance
-
-```{r}
-fit_last_dt %>% 
-  pluck(".workflow", 1) %>%   
-  pull_workflow_fit() %>% 
-  vip::vip(num_features = 11)
-```
-
-
-
-```{r}
-fit_xg %>%
-  pull_workflow_fit() %>%
-  vip::vip(num_features = 20)
-```
-
-#### model on test data
-
-
-```{r}
-pred_collected_t <- tibble(
-  truth = data_test %>% pull(y) %>% as.factor(),
-  #base = mean(truth),
-  lg = fit_lg %>% predict(new_data = data_test) %>% pull(.pred_class),
-  dt = fit_dt %>% predict(new_data = data_test) %>% pull(.pred_class),
-  xg = fit_xg %>% predict(new_data = data_test) %>% pull(.pred_class),
-  ) %>% 
-  pivot_longer(cols = -truth,
-               names_to = 'model',
-               values_to = '.pred')
-```
-
-
-```{r}
-
-#Logistic regression
-
-pred_lg=pred_collected_t %>%
-  filter(model== "lg")%>%
-  pull(.pred)
-
-truth_lg=pred_collected_t %>%
-  filter(model== "lg")%>%
-  pull(truth)
-
-
-caret::confusionMatrix(data = pred_lg, reference= truth_lg )
-
-#Decision tree
-
-pred_dt=pred_collected_t %>%
-  filter(model== "dt")%>%
-  pull(.pred)
-
-truth_dt=pred_collected_t %>%
-  filter(model== "dt")%>%
-  pull(truth)
-
-caret::confusionMatrix(data = pred_dt, reference= truth_dt )
-
-
-#XG boost
-
-pred_xg=pred_collected_t %>%
-  filter(model== "xg")%>%
-  pull(.pred)
-
-truth_xg=pred_collected_t %>%
-  filter(model== "xg")%>%
-  pull(truth)
-
-caret::confusionMatrix(data = pred_xg, reference= truth_xg )
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-## TEEEEEST
-### Format data
-Prøver lige en ny visualisering. Først, hvad type er dataet
-```{r}
-library(visdat)
-
-vis_dat(data)
-```
-Hvad med NA's?
-```{r}
-vis_miss(data)
-```
-Alternativt, i tekst i stedet
-```{r}
-is.na(data) %>% colSums()
-```
-
-### Data splitting
-
-A **training dataset** is a dataset of examples used during the learning process and is used to fit the models. 
-A **test dataset** is a dataset that is independent of the training dataset and is used to evaluate the performance of the final model. If a model fit to the training dataset also fits the test dataset well, minimal overfitting has taken place. A better fitting of the training dataset as opposed to the test dataset usually points to overfitting.
-
-Laver lige status til numerisk. Dette gør vi fordi der kom fejl længere nede.
-
-```{r}
-data_y_num <- data_sml
-data_y_num
-
-data_y_num %>% 
-  mutate(y = ifelse(y == "closed", 0, 1))
-```
-
-```{r}
-data_split_stat_num <- initial_split(data_y_num, prop = 0.75, strata = y)
-
-data_train_num <- data_split_stat_num  %>%  training()
-data_test_num <- data_split_stat_num %>% testing()
-```
-
-
-
-Laver lige recipe igen med dummy i stedet
-
-```{r}
-
-data_recipe <- data_train_num %>%
-  recipe(y ~.) %>%
-  step_log(funding_total_usd) %>% #Myb just delete this one
-  step_center(all_numeric(), -all_outcomes()) %>%
-  step_scale(all_numeric(), -all_outcomes()) %>%
-  step_dummy(all_nominal(), -all_outcomes()) %>% 
-  prep()
-
-#na.omit(all_predictors()) %>%
-```
-
-```{r}
-data_train_num #75% af observationer
-data_test_num #25% af observationer
-
-data_y_num 
-```
-### Data exploration
-#### Create data copy
-
-Først tilføjes latitude og longitude.
-
-```{r}
-data2 <- read_csv("startup data.csv", 
-         col_types = cols(founded_at = col_date(format = "%m/%d/%Y"), 
-                          first_funding_at = col_date(format = "%m/%d/%Y"), 
-                          last_funding_at = col_date(format = "%m/%d/%Y")))
-
-data2 %<>%
-  select(!c(`Unnamed: 0`, `Unnamed: 6`, state_code.1, object_id, avg_participants, has_roundA, has_roundB, has_roundC, has_roundD, zip_code, id, city, name, labels))
-
-```
-
-Fordi vi ikke vil ændre på dataet, vi vil bare lege lidt med det.
-```{r}
-data_explore <- data2
-```
-
-Nu laver vi et kort over observationerne adskilt med farve ift. status
-```{r}
-data_explore %>% 
-  ggplot(aes(x = longitude, y = latitude)) +
-  geom_point(aes(size = 1, color = status), 
-             alpha = 0.4)
-```
-
-```{r}
-library(ggmap)
-
-qmplot(x = longitude, 
-       y = latitude, 
-       data = data_explore, 
-       geom = "point", 
-       color = status, 
-       size = 0.1, #kan vi godt opdele efter en kategori også
-       alpha = 0.4) +
-  scale_alpha(guide = 'none') # don't show legend for alpha
-```
-Som om vi er blevet vildledt.
-
-
-## Validation set
-
-Using only two partitions may be insufficient when doing many rounds of hyperparameter tuning (which we don’t perform in this tutorial but it is always recommended to use a validation set).
-
-Derfor laver vi et validation set
-We use k-fold crossvalidation to build a set of 5 validation folds with the function vfold_cv. We also use stratified sampling:
-
-```{r}
-cv_folds <-
- vfold_cv(data_train_num, 
-          v = 5, 
-          strata = y) 
-```
-
-
-## Model building
-
-### Decision tree
-
-```{r}
-dt_spec <- decision_tree(mode = 'classification',
-                          cost_complexity = 0.1,
-                          tree_depth = 5, 
-                          min_n = 5
-                          ) %>%
-  set_engine('rpart') 
-```
-
-
-### Logistic regression
-```{r}
-log_spec <- # your model specification
-  logistic_reg() %>%  # model type
-  set_engine(engine = "glm") %>%  # model engine
-  set_mode("classification") # model mode
-
-# Show your model specification
-log_spec
-```
-
-### Random forest
-```{r}
-library(ranger)
-
-rf_spec <- 
-  rand_forest() %>% 
-  set_engine("ranger", importance = "impurity") %>% 
-  set_mode("classification")
-
-rf_spec
-```
-
-When we set the engine, we add importance = "impurity". This will provide variable importance scores for this model, which gives some insight into which predictors drive model performance.
-
-### Boosted tree (XGBOOST)
-```{r}
-xgb_spec <- 
-  boost_tree() %>% 
-  set_engine("xgboost") %>% 
-  set_mode("classification")
-
-xgb_spec
-```
-
-### K-nearest neighbor
-```{r}
-knn_spec <- 
-  nearest_neighbor(neighbors = 4) %>% # we can adjust the number of neighbors 
-  set_engine("kknn") %>% 
-  set_mode("classification") 
-
-knn_spec
-```
-
-### Neural network
-```{r}
-library(keras)
-
-nnet_spec <-
-  mlp() %>%
-  set_mode("classification") %>% 
-  set_engine("keras", verbose = 0) 
-
-nnet_spec
-```
-
-We set the engine-specific verbose argument to prevent logging the results.
-
-## Create workflows
-A workflow is an object that can bundle together your pre-processing recipe, modeling, and even post-processing requests (like calculating the RMSE).
-
-### Decision tree
-
-```{r}
-d_tree_wflow <- # new workflow object
- workflow() %>% # use workflow function
- add_recipe(data_recipe) %>%   # use the new recipe
- add_model(dt_spec)   # add your model spec
-
-# show object
-d_tree_wflow
-```
-
-### Logistic regression
-```{r}
-log_wflow <- # new workflow object
- workflow() %>% # use workflow function
- add_recipe(data_recipe) %>%   # use the new recipe
- add_model(log_spec)   # add your model spec
-
-# show object
-log_wflow
-```
-
-Vi har 3 recipe steps mindre end de har
-
-
-
-### Random forest
-```{r}
-rf_wflow <-
- workflow() %>%
- add_recipe(data_recipe) %>% 
- add_model(rf_spec) 
-
-rf_wflow
-```
-
-### XGBoost
-```{r}
-xgb_wflow <-
- workflow() %>%
- add_recipe(data_recipe) %>% 
- add_model(xgb_spec)
-
-xgb_wflow
-```
-
-### K-nearest neighbor
-```{r}
-knn_wflow <-
- workflow() %>%
- add_recipe(data_recipe) %>% 
- add_model(knn_spec)
-
-knn_wflow
-```
-
-### Neural network
-```{r}
-nnet_wflow <-
- workflow() %>%
- add_recipe(data_recipe) %>% 
- add_model(nnet_spec)
-
-nnet_wflow
-```
-
-## Evaluate models
-Her bruger vi vores validation set
-
-### Logistic regression
-We use our workflow object to perform resampling. Furthermore, we use metric_set()to choose some common classification performance metrics provided by the yardstick package. Visit yardsticks reference to see the complete list of all possible metrics.
-
-Note that Cohen’s kappa coefficient (κ) is a similar measure to accuracy, but is normalized by the accuracy that would be expected by chance alone and is very useful when one or more classes have large frequency distributions. The higher the value, the better.
-
-```{r}
-log_res <- 
-  log_wflow %>% 
-  fit_resamples(
-    resamples = cv_folds, 
-    metrics = metric_set(
-      recall, precision, f_meas, 
-      accuracy, kap,
-      roc_auc, sens, spec),
-    control = control_resamples(
-      save_pred = TRUE)
-    ) 
-
-```
-
-Den der over her var den der ikke fungerede med string
-
-#### Model coefficients
-
-```{r}
-# save model coefficients for a fitted model object from a workflow
-
-get_model <- function(x) {
-  pull_workflow_fit(x) %>% tidy()
-}
-
-# same as before with one exception
-log_res_2 <- 
-  log_wflow %>% 
-  fit_resamples(
-    resamples = cv_folds, 
-    metrics = metric_set(
-      recall, precision, f_meas, 
-      accuracy, kap,
-      roc_auc, sens, spec),
-    control = control_resamples(
-      save_pred = TRUE,
-      extract = get_model) # use extract and our new function
-    ) 
-```
-
-```{r}
-log_res_2$.extracts[[1]][[1]]
-```
-
-```{r}
-all_coef <- map_dfr(log_res_2$.extracts, ~ .x[[1]][[1]])
-```
-
-Show all of the resample coefficients for a single predictor:
-```{r}
-filter(all_coef, term == "relationships")
-```
+## Log-reg model 
 
 ### Performance metrics
 Show average performance over all folds (note that we use log_res):
@@ -1342,153 +969,157 @@ log_pred %>%
                alpha = 0.5)
 ```
 
+## XGboost model 
 
-## Random Forest
+### Performance metrics
+Show average performance over all folds (note that we use log_res):
 
 ```{r}
-rf_res <-
-  rf_wflow %>% 
-  fit_resamples(
-    resamples = cv_folds, 
-    metrics = metric_set(
-      recall, precision, f_meas, 
-      accuracy, kap,
-      roc_auc, sens, spec),
-    control = control_resamples(save_pred = TRUE)
-    ) 
+xgb_res %>%  collect_metrics(summarize = TRUE)
+```
+Show performance for every single fold:
 
+```{r}
+xgb_res %>%  collect_metrics(summarize = FALSE)
+```
+
+### Collect model predictions
+To obtain the actual model predictions, we use the function collect_predictions and save the result as log_pred:
+
+```{r}
+xgb_pred <- 
+  xgb_res %>%
+  collect_predictions()
+```
+
+### Confusion Matrix
+
+Nu kan vi bruge vores indsamlede predictions til at lave en confusion matrix
+
+```{r}
+xgb_pred %>% 
+  conf_mat(y, .pred_class) 
+```
+
+Eller
+```{r}
+xgb_pred %>% 
+  conf_mat(y, .pred_class) %>% 
+  autoplot(type = "mosaic")
+```
+
+Eller (den her synes jeg er bedst)
+
+```{r}
+xgb_pred %>% 
+  conf_mat(y, .pred_class) %>% 
+  autoplot(type = "heatmap")
+```
+
+## ROC curve
+```{r}
+xgb_pred %>% 
+  roc_curve(y, .pred_acquired) %>% 
+  autoplot()
+```
+
+Med folds
+```{r}
+xgb_pred %>% 
+  group_by(id) %>%
+    roc_curve(y, .pred_acquired) %>% 
+  autoplot()
+```
+
+Kan vi lave på andre end log
+
+
+```{r}
+xgb_pred %>% 
+  ggplot() +
+  geom_density(aes(x = .pred_acquired, 
+                   fill = y), 
+               alpha = 0.5)
+```
+
+## Random forrest model 
+
+### Performance metrics
+Show average performance over all folds (note that we use log_res):
+
+```{r}
 rf_res %>%  collect_metrics(summarize = TRUE)
 ```
-## XGBoost
+Show performance for every single fold:
 
 ```{r}
-xgb_res <- 
-  xgb_wflow %>% 
-  fit_resamples(
-    resamples = cv_folds, 
-    metrics = metric_set(
-      recall, precision, f_meas, 
-      accuracy, kap,
-      roc_auc, sens, spec),
-    control = control_resamples(save_pred = TRUE)
-    ) 
-
-xgb_res %>% collect_metrics(summarize = TRUE)
+rf_res %>%  collect_metrics(summarize = FALSE)
 ```
 
-```{r}
-knn_res <- 
-  knn_wflow %>% 
-  fit_resamples(
-    resamples = cv_folds, 
-    metrics = metric_set(
-      recall, precision, f_meas, 
-      accuracy, kap,
-      roc_auc, sens, spec),
-    control = control_resamples(save_pred = TRUE)
-    ) 
-
-knn_res %>% collect_metrics(summarize = TRUE)
-```
-## Decision tree
+### Collect model predictions
+To obtain the actual model predictions, we use the function collect_predictions and save the result as log_pred:
 
 ```{r}
-dt_res <- 
-  d_tree_wflow %>% 
-  fit_resamples(
-    resamples = cv_folds, 
-    metrics = metric_set(
-      recall, precision, f_meas, 
-      accuracy, kap,
-      roc_auc, sens, spec),
-    control = control_resamples(save_pred = TRUE)
-    ) 
-
-dt_res %>% collect_metrics(summarize = TRUE)
+rf_res <- 
+  log_res %>%
+  collect_predictions()
 ```
 
-## Compare models
+### Confusion Matrix
+
+Nu kan vi bruge vores indsamlede predictions til at lave en confusion matrix
 
 ```{r}
-log_metrics <- 
-  log_res %>% 
-  collect_metrics(summarise = TRUE) %>%
-  mutate(model = "Logistic Regression") # add the name of the model to every row
-
-rf_metrics <- 
-  rf_res %>% 
-  collect_metrics(summarise = TRUE) %>%
-  mutate(model = "Random Forest")
-
-xgb_metrics <- 
-  xgb_res %>% 
-  collect_metrics(summarise = TRUE) %>%
-  mutate(model = "XGBoost")
-
-knn_metrics <- 
-  knn_res %>% 
-  collect_metrics(summarise = TRUE) %>%
-  mutate(model = "Knn")
-
-dt_metrics <- 
-  dt_res %>% 
-  collect_metrics(summarise = TRUE) %>%
-  mutate(model = "Decision tree")
-
+rf_res %>% 
+  conf_mat(y, .pred_class) 
 ```
 
-
+Eller
 ```{r}
-# create dataframe with all models
-model_compare <- bind_rows(
-                          log_metrics,
-                           rf_metrics,
-                           xgb_metrics,
-                           knn_metrics,
-                          dt_metrics,
-                           ) 
-
-# change data structure
-model_comp <- 
-  model_compare %>% 
-  select(model, .metric, mean, std_err) %>% 
-  pivot_wider(names_from = .metric, values_from = c(mean, std_err)) 
-
-# show mean F1-Score for every model
-model_comp %>% 
-  arrange(mean_f_meas) %>% 
-  mutate(model = fct_reorder(model, mean_f_meas)) %>% # order results
-  ggplot(aes(model, mean_f_meas, fill=model)) +
-  geom_col() +
-  coord_flip() +
-  scale_fill_brewer(palette = "Blues") +
-   geom_text(
-     size = 3,
-     aes(label = round(mean_f_meas, 2), y = mean_f_meas + 0.08),
-     vjust = 1
-  )
+rf_res %>% 
+  conf_mat(y, .pred_class) %>% 
+  autoplot(type = "mosaic")
 ```
-It looks like the Random Forest is the best! 
+
+Eller (den her synes jeg er bedst)
 
 ```{r}
-# show mean area under the curve (auc) per model
-model_comp %>% 
-  arrange(mean_roc_auc) %>% 
-  mutate(model = fct_reorder(model, mean_roc_auc)) %>%
-  ggplot(aes(model, mean_roc_auc, fill=model)) +
-  geom_col() +
-  coord_flip() +
-  scale_fill_brewer(palette = "Blues") + 
-     geom_text(
-     size = 3,
-     aes(label = round(mean_roc_auc, 2), y = mean_roc_auc + 0.08),
-     vjust = 1
-  )
+rf_res %>% 
+  conf_mat(y, .pred_class) %>% 
+  autoplot(type = "heatmap")
 ```
-## We now use the best model on test data
+
+## ROC curve
+```{r}
+rf_res %>% 
+  roc_curve(y, .pred_acquired) %>% 
+  autoplot()
+```
+
+Med folds
+```{r}
+rf_res %>% 
+  group_by(id) %>%
+    roc_curve(y, .pred_acquired) %>% 
+  autoplot()
+```
+
+Kan vi lave på andre end log
+
 
 ```{r}
-last_fit_rf <- last_fit(rf_wflow, 
+rf_res %>% 
+  ggplot() +
+  geom_density(aes(x = .pred_acquired, 
+                   fill = y), 
+               alpha = 0.5)
+```
+
+#### We use XGboost on the test data
+
+
+```{r}
+last_fit_xgb <- last_fit(xgb_wflow, 
                         split = data_split,
                         metrics = metric_set(
                           recall, precision, f_meas, 
@@ -1499,13 +1130,15 @@ last_fit_rf <- last_fit(rf_wflow,
 
 
 ```{r}
-last_fit_rf %>% 
+last_fit_xgb %>% 
   collect_metrics()
 ```
+
+
 ```{r}
 library(vip)
 
-last_fit_rf %>% 
+last_fit_xgb %>% 
   pluck(".workflow", 1) %>%   
   pull_workflow_fit() %>% 
   vip(num_features = 10)
@@ -1520,41 +1153,90 @@ last_fit_rf %>%
 
 ```
 
-
 ```{r}
 last_fit_rf %>% 
   collect_predictions() %>% 
   roc_curve(y, .pred_acquired) %>% 
   autoplot()
 ```
-Det er nok ik verdens bedste model, men heller ik verdens væreste! 
+
+## Andet test data myb slet? 
+
+```{r}
+pred_collected_t <- tibble(
+  truth = data_test %>% pull(y) %>% as.factor(),
+  #base = mean(truth),
+  lg = fit_lg %>% predict(new_data = data_test) %>% pull(.pred_class),
+  dt = fit_dt %>% predict(new_data = data_test) %>% pull(.pred_class),
+  xg = fit_xg %>% predict(new_data = data_test) %>% pull(.pred_class),
+  ) %>% 
+  pivot_longer(cols = -truth,
+               names_to = 'model',
+               values_to = '.pred')
+```
 
 
-## leg med far
 ```{r}
 
-lr_auc <- 
-  lr_res %>% 
-  collect_predictions(parameters = lr_best) %>% 
-  roc_curve(children, .pred_children) %>% 
-  mutate(model = "Logistic Regression")
+#Logistic regression
 
-autoplot(lr_auc)
+pred_lg=pred_collected_t %>%
+  filter(model== "lg")%>%
+  pull(.pred)
+
+truth_lg=pred_collected_t %>%
+  filter(model== "lg")%>%
+  pull(truth)
 
 
-library(ROCR)
-pred_dt
-truth_dt
+caret::confusionMatrix(data = pred_lg, reference= truth_lg )
 
-pred_dt %>%
-  mutate(pred_dt = filter(pred_dt == ))
-#data(ROCR.simple)
-#df <- data.frame(ROCR.simple)
-pred_dt_2 <- prediction(pred_dt, truth_dt)
-perf <- performance(pred,"tpr","fpr")
-plot(perf,colorize=TRUE)
+#Decision tree
 
-df$predictions
+pred_dt=pred_collected_t %>%
+  filter(model== "dt")%>%
+  pull(.pred)
+
+truth_dt=pred_collected_t %>%
+  filter(model== "dt")%>%
+  pull(truth)
+
+caret::confusionMatrix(data = pred_dt, reference= truth_dt )
+
+
+#XG boost
+
+pred_xg=pred_collected_t %>%
+  filter(model== "xg")%>%
+  pull(.pred)
+
+truth_xg=pred_collected_t %>%
+  filter(model== "xg")%>%
+  pull(truth)
+
+caret::confusionMatrix(data = pred_xg, reference= truth_xg )
+
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
