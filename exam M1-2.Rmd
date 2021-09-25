@@ -63,12 +63,12 @@ last_funding_at = col_date(format = "%m/%d/%Y")))
 
 ### Format data
 Prøver lige en ny visualisering. Først, hvad type er dataet
-```{r}
+```{r, fig.height=6, fig.width=12}
 vis_dat(data_start)
 ```
 
 Hvad med NA's?
-```{r}
+```{r, fig.height=6, fig.width=12}
 vis_miss(data_start)
 ```
 
@@ -100,7 +100,7 @@ qmplot(x = longitude,
        alpha = 0.4) +
   scale_alpha(guide = 'none') # don't show legend for alpha
 ```
-Tror myb der er NA's  i det data her ved ik om det does something
+Lav de plots her efter vi har fjernet NA's
 
 We take a quick look at the data
 ```{r}
@@ -108,7 +108,7 @@ skim(data_start)
 ```
 
 
-We start by removing columns there are undefined when loading the dataset and columns which show the same things. We also remove variables like longtitude and latitude, which could be fun to work with later, but doesnt seem to bring much insight to the ongoing analysis. 
+We start by removing columns there are undefined when loading the dataset and columns which show the same things. We also remove variables like longtitude and latitude, which doesnt seem to bring much insight to the ongoing analysis. 
 
 ```{r}
 
@@ -116,6 +116,14 @@ data = data_start %>%
   select(!c(`Unnamed: 0`, `Unnamed: 6`, state_code.1, object_id, avg_participants, has_roundA, has_roundB, has_roundC, has_roundD, zip_code, id, city, name, latitude, longitude, labels))
 
 ```
+
+
+**If we want to remove outliers do it here**
+
+Maybe do a boxplot of the numerical variables we use
+
+
+
 
 The data contains 33 numerical variables after the first cleaning, but 22 of those are dummy variables, which are variables we later on could try and see if our clusters are separated by. But as over main objective is to try and separate by the status column "closed or "acquired" we will now take a look an see, which variables seems to be correlated with the status column, starting with the jobtype related dummies, the state related dummies and lastly the three remaining dummies.
 
@@ -195,7 +203,7 @@ Now we are left with only our status variable and our 7 numerical variables of i
 
 ```{r}
 data %>%
-  select(everything()) %>%
+  select(everything()) %>% #Kan slettes?
   summarise_all(funs(sum(is.na(.))))
 ```
 
@@ -207,6 +215,11 @@ The above states that the age_first_milestone_year has 152 missing values. THe p
 data %<>%
   mutate(age_first_milestone_year= ifelse(age_first_milestone_year <0,"before year 0",ifelse(age_first_milestone_year <= 3 , "[0-3]", ifelse(age_first_milestone_year <= 6, "]3-6]", ifelse(age_first_milestone_year >6, "over 6",""))))) %>%
   mutate(age_first_milestone_year= replace_na(age_first_milestone_year, "no milestone"))
+
+
+data %>%
+  filter(age_first_milestone_year == "before year 0")%>%
+  count(status)
 
 data %<>% 
   mutate("is_before_start" = as.numeric(age_first_milestone_year == "before year 0")) %>% 
@@ -232,9 +245,29 @@ table = cbind(names, description); table
 ```
 Now we move on to unsupervised machine learning.
 
+**Eller fjerne outliers her**
+
+
+```{r}
+
+skim(data)
+
+data %>% 
+  ggplot(aes(funding_total_usd))+
+  geom_histogram()
+
+data%>% arrange(desc(funding_total_usd))
+
+data %<>%
+  filter(funding_total_usd < 5700000000)
+  #Changes conclusion and makes the supervised model better. 
+
+```
+
+
 # Unsupervised ML
 
-We start by performing dimensionalty reduction on our data, but before we can do that, we need to exmine or data to figure out if we need to scale it?
+We start by performing dimensionalty reduction on our data, but before we can do that, we need to examine our data to figure out if we need to scale it?
 
 ```{r}
 options(scipen = 999)
@@ -297,6 +330,32 @@ ggtheme = theme_gray())
 The plot shows that the red which is the firms who have been aquired tends to be more to the right, which indicates that they have reach more milestones, had more relationships and had a higher tendency to be a top500 start up. But to conclude the PCA doesnt really seperate the firms by status.
    Next we are going to use another dimensionality reduction method namely umap to see if it does a better job.
    
+   
+  
+   
+   
+**Myb do one more plot with different elipses could make a categorical variable from the starting data**
+
+```{r}
+
+uml_elipse_data=data_start%>%
+  filter(funding_total_usd < 5700000000 )%>%
+  mutate(state_code= ifelse(state_code %in% c("CA", "MA", "NY", "TX"), state_code, "other"))
+
+
+
+```
+
+```{r, fig.height=7, fig.width=9, warning=FALSE}
+res_pca %>%
+fviz_pca_biplot(alpha.ind = "cos2",
+habillage = uml_elipse_data %>% pull(state_code) %>% factor(),
+addEllipses = TRUE,
+geom = "point",
+ggtheme = theme_gray())
+
+```
+   
 ## UMAP
 First we create the UMAP object and remember to scale it:
 ```{r}
@@ -316,7 +375,7 @@ ggplot(aes(x = V1, y = V2, fill = data$status)) +
 geom_point(shape = 21, alpha = 0.5)
 ```
 
-UMAP seem to separate the observations better as we kinda have 4 clusters here. But they are not separated that well between closed and acquired. It does however seem like most of the firms which has been acquired is to the left and the top left of the plot.
+UMAP seem to separate the observations better as we kinda have 4 clusters here. But they are not separated that well between closed and acquired. It does however seem like most of the firms which has been acquired **(closed right?)** is to the left and the top left of the plot.
 
 ## K-means clustering
 
@@ -398,6 +457,8 @@ Now we will try to use a different clustering method namely hierachical clusteri
 
 ## Hierarchical clustering
 
+**Kan ik huske men er der en måde at finde optimale mængde cluster her?**
+
 We make the hclust object and put stand equal to true as it will scale our data.
 ```{r}
 res_hc = data_num %>% 
@@ -477,6 +538,15 @@ glimpse(data_sml)
 
 ### Training & Test split
 
+Just to get an idea how the y variable is split between aquaried and closed we can do a histogram
+
+```{r}
+data_sml %>% 
+  ggplot(aes(y)) +
+  geom_bar() 
+```
+We can see there are more observations under acquired than closed, so to be certain that the training and test data will be as similar as possible we set the strata argument equal to y when we split the data.
+
 ```{r}
 set.seed(123)
 
@@ -494,7 +564,7 @@ data_test <- data_split %>% testing()
 ### Preprocessing recipe
 
 
-step_log bruges hvis variablen er lid scewed!
+step_log bruges hvis variablen er lidt scewed!
 
 ```{r}
 
@@ -505,9 +575,6 @@ data_recipe <- data_train %>%
   step_scale(all_numeric(), -all_outcomes()) %>%
   step_dummy(all_nominal(), -all_outcomes()) %>% 
   prep()
-
-
-#na.omit(all_predictors()) %>%
 
 
 summary(data_recipe)
@@ -625,7 +692,6 @@ data_resample <- data_train %>%
 
 #### Hyperparameter Tuning: Decision Tree
 
-Need to find out what the error is here!
 
 ```{r}
 tune_dt <-
@@ -1176,62 +1242,47 @@ last_fit_xgb %>%
   autoplot()
 ```
 
-## Andet test data myb slet? 
+
+#### We use Random Forrest on the test data
+
 
 ```{r}
-pred_collected_t <- tibble(
-  truth = data_test %>% pull(y) %>% as.factor(),
-  #base = mean(truth),
-  lg = fit_lg %>% predict(new_data = data_test) %>% pull(.pred_class),
-  dt = fit_dt %>% predict(new_data = data_test) %>% pull(.pred_class),
-  xg = fit_xg %>% predict(new_data = data_test) %>% pull(.pred_class),
-  ) %>% 
-  pivot_longer(cols = -truth,
-               names_to = 'model',
-               values_to = '.pred')
+last_fit_rf <- last_fit(workflow_rf, 
+                        split = data_split,
+                        metrics = metric_set(
+                          recall, precision, f_meas, 
+                          accuracy, kap,
+                          roc_auc, sens, spec)
+                        )
 ```
 
 
 ```{r}
-
-#Logistic regression
-
-pred_lg=pred_collected_t %>%
-  filter(model== "lg")%>%
-  pull(.pred)
-
-truth_lg=pred_collected_t %>%
-  filter(model== "lg")%>%
-  pull(truth)
+last_fit_rf %>% 
+  collect_metrics()
+```
 
 
-caret::confusionMatrix(data = pred_lg, reference= truth_lg )
+```{r}
+last_fit_rf %>% 
+  pluck(".workflow", 1) %>%   
+  pull_workflow_fit() %>% 
+  vip(num_features = 10)
+```
 
-#Decision tree
+```{r}
+last_fit_rf %>%
+  collect_predictions() %>% 
+  conf_mat(y, .pred_class) %>% 
+  autoplot(type = "heatmap")
 
-pred_dt=pred_collected_t %>%
-  filter(model== "dt")%>%
-  pull(.pred)
+```
 
-truth_dt=pred_collected_t %>%
-  filter(model== "dt")%>%
-  pull(truth)
-
-caret::confusionMatrix(data = pred_dt, reference= truth_dt )
-
-
-#XG boost
-
-pred_xg=pred_collected_t %>%
-  filter(model== "xg")%>%
-  pull(.pred)
-
-truth_xg=pred_collected_t %>%
-  filter(model== "xg")%>%
-  pull(truth)
-
-caret::confusionMatrix(data = pred_xg, reference= truth_xg )
-
+```{r}
+last_fit_rf %>% 
+  collect_predictions() %>% 
+  roc_curve(y, .pred_acquired) %>% 
+  autoplot()
 ```
 
 
