@@ -353,6 +353,33 @@ table(data$cluster2, data$status)
 ```
 Running it on the dimensionality reduced data seems to have separated the firms by status a little worse then by running it on the entire data. We see the acquired firms are almost identical between the two, but the number of closed firm in each clusters has come closer to each other instead of farther away.
 
+## K-means with the optimal of 4 clusters
+
+Now we try with the optimal amount of clusters shown by the screeplot earlier which was 4.
+
+```{r}
+res_km4 <- data_num %>%
+scale() %>%
+kmeans(centers = 4, nstart = 20)
+```
+
+
+```{r}
+res_km4 %>%
+fviz_cluster(data = data_num ,
+ggtheme = theme_gray())
+```
+
+Even with 4 clusters created by the K-means it doesn't seem to separate our data points very well. Now with 4 clusters we check whether or not the clusters are separated well between a categorical varaible with four different values namely our state variable.
+
+```{r}
+data[,"cluster4"] <- res_km4$cluster
+  
+table(data$cluster4, data_state$state_code)
+
+```
+The clusters don't seem to be separated by the states what so ever. We can see that cluster, so dealing with four clusters didnt yield us a better result.
+
 Now we will try to use a different clustering method namely hierachical clustering.
 
 ## Hierarchical clustering
