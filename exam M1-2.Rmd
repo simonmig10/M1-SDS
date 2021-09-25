@@ -600,6 +600,9 @@ workflow_rf <- workflow_general %>%
 
 
 ```{r}
+
+set.seed(100)
+
 data_resample <- data_train %>% 
   vfold_cv(strata = y,
            v = 3,
@@ -1151,7 +1154,6 @@ last_fit_xgb %>%
   collect_predictions() %>% 
   conf_mat(y, .pred_class) %>% 
   autoplot(type = "heatmap")
-
 
 ```
 
