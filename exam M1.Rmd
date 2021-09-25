@@ -927,7 +927,7 @@ A workflow is an object that can bundle together your pre-processing recipe, mod
 d_tree_wflow <- # new workflow object
  workflow() %>% # use workflow function
  add_recipe(data_recipe) %>%   # use the new recipe
- add_model(log_spec)   # add your model spec
+ add_model(dt_spec)   # add your model spec
 
 # show object
 d_tree_wflow
@@ -938,7 +938,7 @@ d_tree_wflow
 log_wflow <- # new workflow object
  workflow() %>% # use workflow function
  add_recipe(data_recipe) %>%   # use the new recipe
- add_model(dt_spec)   # add your model spec
+ add_model(log_spec)   # add your model spec
 
 # show object
 log_wflow
@@ -1306,7 +1306,8 @@ last_fit_rf %>%
   roc_curve(y, .pred_acquired) %>% 
   autoplot()
 ```
-Det er nok ik verdens bedste model, men heller ik verdens væreste!
+Det er nok ik verdens bedste model, men heller ik verdens væreste! 
+
 
 
 ## leg med far
