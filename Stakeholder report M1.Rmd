@@ -1,0 +1,76 @@
+---
+title: "Stakeholder report M1"
+author: "Mikkel Bak Lyngø"
+date: "24 sep 2021"
+output: word_document
+---
+
+#Background and objectives for the Group Assignment
+
+In this assignment, we had the opportunity to use newly acquired abilities within Machine Learning to investigate a given problem statement. Through the M1 course, we have practised unsupervised machine learning techniques for dimensionality reduction and clustering to discover relationships between features and groupings of observations. In addition, we have used supervised machine learning for regression and classification problems, where we created models to predict an outcome of interest given some input features. Based on this, we will try to carry out an analysis which contains elements of data manipulation, exploration, unsupervised and supervised machine learning. 
+
+#Problem statement
+
+Use machine learning techniques to investigate which determinants are decisive for a startup's success. A startup is a young company or project founded by one or more entrepreneurs to develop a unique product or service and bring it to market. There has been an exponential growth in startups over the past few years and startups play a major role in economic growth. They bring new ideas, spur innovation, create employment and thereby moving the economy, which is why it is interesting to perform an analysis on these startup's. 
+
+#Data acquisition
+Given the problem statement we then choose and obtain a dataset which we consider interesting and appropriate for this analysis. Through Kaggle (which contains more than 50,000 public datasets) we were able to find a relevant dataset. The data contains 48 columns/features, which describes different industry trends, investment insights and individual company information. 
+
+#Results
+
+We will continuously refer to the current steps in the analysis, using ("1"), which is also associated with all parts of the code version of the assignment. 
+
+We start by loading all the relevant packages (1) which are used to later perform various functions in R. Then we load in our dataset (2) and in the same step we convert some date-variables to numerical values as these variables will be included in the pca later on. 
+In the data cleaning process we first skim the data (3) to see how wholesome it is. We start by removing columns that are undefined as they are not described when loading the dataset. Some of the columns show the same thing and are therefore removed as well. We also remove variables like "longtitude" and "latitude", which could be fun to work with later on, but doesnt seem to bring much insight to the ongoing analysis (4). 
+
+By removing those we now have our dataset containing 33 numerical variables. We observe that 22 of those are dummy variables, which means that the variable only have 2 outcomes. It is possible to use dummy variables when trying to perform cluster analysis and see if our clusters are separated by selected dummy variables. However our main objective is to try and separate by the "status" column, which contains the outcomes: "closed" or "acquired". We therefore want to find out, which variables seems to be correlated with the "status" column, starting with the jobtype related dummies, the state related dummies and lastly the three remaining dummies. 
+
+Selecting the three dummy categories and plotting those separately against the variable "status" we get our 3 plots for correlation: 
+  The plot of the job type related dummies shows that there is almost no differences in how many firm closes and how many who becomes acquired according to job type. 
+  Looking at the state related dummies, the plot shows that a bit more firms from New York, Texas and California are being acquired than from the rest of the United States, which could indicate that they could be useful variables to use in our analysis. On the other hand you could argue, that the differences aren't substantial which would make them less influential in the analysis. 
+   Lastly in the plot of the three remaining dummy variables it is clear to see that whether or not the firm has been a top 500 upcoming firm substantially changes the chance of closing or not. Whether they have VC or angel investors doesn't seem to influence the outcome in a big way. 
+Given the results from our three plots we drop the "state" and "job" related variables plus the VC and angel dummies, however we keep "is_top500" and then we skim the data once again. 
+
+Still there are 8 numerical variables as well as 3 date variables we haven't taken a closer look at yet, which naturally takes us to the part where we determine how those variables seems to be correlated with the "status" column. By performing a plot containing "relationships", "milestones", "funding_total_usd", "funding_rounds", "closed_at", both "first and last milestone_year" and "last_funding_year" we observe that "closed_at" will not be used because it contains almost 600 missing observations which is close to 66% of all observations. Futhermore, "founded_at" will not be used either simply because there doesnt seem to be that big of a difference in the density plots. Using both "first and last milestone_year" might be irrelevant because they somehow nearly show the same thing, which is why we dont use "age_last_milestone_year". The same goes for "first and last funding_at" which doesn't show any significance either. 
+
+After the removal of selected variables we are left with only our "status" variable and our 7 numerical variables of interest. For those variables that remains we check for missing values. We observe that "age_first_milestone_year" has 152 missing values. However the problem with this variable is, that if we remove those rows, we lose 16.4% of our observations, and we cant just replace the NA's with something else - like zero - because that would only manipulate our data. The solution we have come up with is to divide the variable into intervals, as we want to investigate whether the duration to the first milestone has significance in terms of a startup getting acquired. We pick the interval zero to three years and we drop the rest, which means that startup achieved their first milestone when they were between 0 and 3 years old. This concludes our data preparation process. 
+
+Moving on to the exploratory data analysis (EDA) we now have our variables of interest: 
+```{r}
+names = colnames(data)
+description = c("numeric, age at last/latest funding", "numeric, number of relationships", "numeric, number of funding rounds", "numeric, the total funding in USD", "numeric, number og milestones", "dummy variable, has been a top 500 start up", "character string, acquired or closed", "reach their first milestone at the age of 0-3 years")
+
+table = cbind(names, description); table
+```
+
+We start by performing dimensionalty reduction on our data, however we need to know whether our data should be scaled before we can do so. 
+We observe that our data has to be scaled in order to peform PCA. Namely "funding_total_usd" seems much higher. We also have some dummy variables which only take a value of either 0 or 1, so these will also be on a different scale than the rest. 
+We scale the data by setting the argument scale.unit to TRUE and then we run the PCA. Further we can only run our PCA on numeric variables and therefore we use the data subset called "data_num". 
+
+Once we have scaled our data we can create a screeplot to pick number of dimensions to use in PCA. In this screeplot we look for an "elbow" which shows the optimal number of dimensions. In our case we observe an elbow at three dimensions with almost 65% explained variance. However if we only look at the eigenvalues then our rule of thumb is to pick the dimensions with an eigenvalue >=1, which in this case is two dimensions. Those two dimensions only account for 52% of the total variance, which isn't that high. As it is difficult to interpret a plot with three dimensions we visualize our reduced data in two dimensions. 
+From the PCA_var_plot we observe, that the x-axis split our six variables into two groups. Where the ones involving funding or money is below the x_axis and variables like milestones, relationships and is_0:3 are above the x-axis. Our last variable whether a firm has been top500 lies almost on the x-axis, which indicates that it is mostly explained by the first dimension. 
+It can be said about our variables, that the less opaque the arrow the higher the "cos2" and thereby a higher representation of the variable in the principal components we have used eg. funding total USD is not as well explained by the first two principal components as the other variables. The "contrib" shows almost the same, as it is just (cos2*100)/(total cos2 of the component). That is why we see the once which are the most opaque also being the once with a blue/greenish color. 
+
+Then we plot all our observations in the two dimensional space and try to split them up by there "status" of either being aquired or closed. This plot shows that the red (which indicates the startup´s who have been aquired) tends to be more to the right in the plot, which indicates that they have reach more milestones, had more relationships and had a higher tendency to be a top500 startup. However the conclusion would be that the PCA doesnt really seperate the startup´s by status, which is why we use another dimensionality reduction method called "umap" to see if this method does a better job. 
+
+With this method we first create the UMAP object and remember to scale it. We then plot this object in a two dimensional space and fill our observations by "status". From this plot we observe that UMAP seem to separate the observations better as we kinda have 4 clusters here. However they are not separated that well between closed and acquired. It does however seem like most of the startup´s which have been acquired is more to the left and top left of the plot. 
+
+We then turn to clustering of our data, where we want to investigate whether our data are clustered by "status" or not. When doing so we both make clusters on our data and on our PCA data. Furthermore we perform K-means clustering as well as hierachical clustering. 
+
+We start by performing K-means clustering on our dataset where it Seems like the optimal number of clusters is somewhere around 4 clusters, but as we wanna show whether we can make two clusters that are separated by status which only has two different values "acquired" and "closed" we choose to move on with two clusters. 
+The two clusters created by the K-means doesn't seem to separate our data points between status, which is unfortunate, but we still take a look of the result in a table by extracting the cluster number and putting it into our data set. From this we observe that the clusters don't seem to be separated by the status of the startup´s at all. We can see that cluster 1 both has most startup´s who have been acquired and closed. 
+Then we perform K-means clustering on the dimensionalty reduced data (PCA), which is why we extracted the first two components and put them into a new data set called pca_data. Though we observe the elbow at three clusters we still move on with 2 as we would still like to separate by status. Clustering with the pca_data seems to make two clusters who are much more separated and again we check in a table to see how well they are separated by status. 
+By using the dimensionality reduced data it seems like the startup´s have been separated by status a little worse compared with running it on the entire data set. We see the acquired firms are almost identical between the two, but the number of closed firm in each clusters has come closer to each other instead of getting more separated. 
+
+With this result from K-means clustering we naturally would like to try a different clustering method namely hierachical clustering. 
+We start by making the hclust object and put stand equal to true as this will scale our data. 
+
+
+#Conclusions
+
+
+
+
+
+
+
