@@ -65,7 +65,7 @@ last_funding_at = col_date(format = "%m/%d/%Y")))
 
 ## Format data
 First we look at what type of data we are dealing with.
-```{r, fig.height=?, fig.width=?}
+```{r, fig.height=12, fig.width=16}
 vis_dat(data_start)
 ```
 
@@ -115,14 +115,17 @@ skim(data_start)
 We start by removing columns that are undefined when loading the dataset and columns which show the same things. We also remove variables like longitude and latitude, which doesn't seem to bring much insight to the ongoing analysis.
 ```{r}
 data = data_start %>%
-  select(!c(`Unnamed: 0`, `Unnamed: 6`, state_code.1, object_id, avg_participants, has_roundA, has_roundB, has_roundC, has_roundD, zip_code, id, city, name, latitude, longitude, labels))
+  select(!c(`Unnamed: 0`, `Unnamed: 6`, state_code.1, object_id, avg_participants, 
+            has_roundA, has_roundB, has_roundC, has_roundD, zip_code, id, city, name, 
+            latitude, longitude, labels))
 ```
 
 We divide the data into different groups and then look at the data to see where the distribution seem to differ depending on the status of the startup. We use geom_density_ridges to do this.
 
 ```{r, warning=FALSE}
 jobs = data %>% 
-  select(is_software, is_web, is_mobile, is_enterprise, is_advertising, is_gamesvideo, is_ecommerce, is_biotech, is_consulting, is_othercategory, status)
+  select(is_software, is_web, is_mobile, is_enterprise, is_advertising, is_gamesvideo, 
+         is_ecommerce, is_biotech, is_consulting, is_othercategory, status)
 
 state = data %>% 
   select(is_CA, is_TX, is_MA, is_NY, is_otherstate, status)
@@ -162,7 +165,10 @@ By looking at the distribution plot we choose the variables that seem to be able
 Because of the above we drop the state and job variables plus the VC and angel dummies, but we keep is_top500 and then we skim the data again.
 ```{r}
 data %<>%
-  select(-c(is_CA, is_TX, is_MA, is_NY, is_otherstate, is_software, is_web, is_mobile, is_enterprise, is_advertising, is_gamesvideo, is_ecommerce, is_biotech, is_consulting, is_othercategory, state_code, category_code, has_angel, has_VC))
+  select(-c(is_CA, is_TX, is_MA, is_NY, is_otherstate, is_software, is_web, is_mobile, 
+            is_enterprise, is_advertising, is_gamesvideo, is_ecommerce, is_biotech, 
+            is_consulting, is_othercategory, state_code, category_code, has_angel, 
+            has_VC))
 
 skim(data)
 ```
@@ -183,7 +189,8 @@ The above plot shows, that relationships, milestones, funding_total_usd, funding
     
 ```{r}
 data%<>%
-  select(!c(age_last_milestone_year, closed_at, age_first_funding_year,founded_at, first_funding_at, last_funding_at))
+  select(!c(age_last_milestone_year, closed_at, age_first_funding_year,founded_at, 
+            first_funding_at, last_funding_at))
 ```
 
 Now we are left with only our status variable and our 7 numerical variables of interest. Now we check for missing values in our remaining variables.
@@ -197,7 +204,10 @@ The above states that the age_first_milestone_year has 152 missing values. The p
 
 ```{r}
 data %<>%
-  mutate(age_first_milestone_year= ifelse(age_first_milestone_year <0,"before year 0",ifelse(age_first_milestone_year <= 3 , "[0-3]", ifelse(age_first_milestone_year <= 6, "]3-6]", ifelse(age_first_milestone_year >6, "over 6",""))))) %>%
+  mutate(age_first_milestone_year= ifelse(age_first_milestone_year <0,"before year 0",
+      ifelse(age_first_milestone_year <= 3 , "[0-3]",
+      ifelse(age_first_milestone_year <= 6, "]3-6]", 
+      ifelse(age_first_milestone_year >6, "over 6",""))))) %>%
   mutate(age_first_milestone_year= replace_na(age_first_milestone_year, "no milestone"))
 
 
@@ -483,7 +493,8 @@ We start by creating a new dataset and renaming our "status" variable to "y" for
 
 data_sml= data %>%
   rename(y = status) %>%
-  select(y, total, funding_rounds, relationships, milestones, is_top500, `is_0:3`, age_last_funding_year) 
+  select(y, total, funding_rounds, relationships, milestones, is_top500, `is_0:3`,
+         age_last_funding_year) 
 
 glimpse(data_sml)
 ```
