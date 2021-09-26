@@ -1,8 +1,8 @@
 ---
 title: "Exam"
-author: "Simon"
+author: "Andreas, Kristoffer, Mikkel & Simon"
 date: "22/9/2021"
-output:
+output: beamer_presentation
     pdf_document:
         latex_engine: xelatex
 ---
@@ -104,6 +104,7 @@ qmplot(x = longitude,
 
 ## Data preparation process
 We take a quick look at the data. First we divide the "funding_total_usd" by 1000 to make the tables more readable. The "funding_total_usd" will also be renamed to "total".
+
 ```{r}
 data_start %<>%
   mutate(total = funding_total_usd / 1000) %>%
