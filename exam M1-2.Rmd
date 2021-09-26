@@ -2,7 +2,9 @@
 title: "Exam"
 author: "Simon"
 date: "22/9/2021"
-output: html_document
+output:
+    pdf_document:
+        latex_engine: xelatex
 ---
 
 
@@ -49,7 +51,7 @@ library(vip)
 ```
 
 
-# load data
+# Loading the data
 
 ```{r}
 data_start <- read_csv("startup data.csv", 
@@ -58,74 +60,65 @@ first_funding_at = col_date(format = "%m/%d/%Y"),
 last_funding_at = col_date(format = "%m/%d/%Y")))
 ```
 
-# data cleaning / EDA
+# Data cleaning / EDA
 
 
-### Format data
-Prøver lige en ny visualisering. Først, hvad type er dataet
-```{r, fig.height=6, fig.width=12}
+## Format data
+First we look at what type of data we are dealing with.
+```{r, fig.height=?, fig.width=?}
 vis_dat(data_start)
 ```
 
-Hvad med NA's?
-```{r, fig.height=6, fig.width=12}
-vis_miss(data_start)
-```
-
-Alternativt, i tekst i stedet
+We also show the amount of NA's in text, so that we can see how many NA's each variable contains.
 ```{r}
 is.na(data_start) %>% colSums()
 ```
 
-
-Fjerner lige de observationer, der ikke ligger i USA.
+## Geographical visualisation
+First we visualize the latitude and longitude of the observations.
 ```{r}
 data_start %>% 
   ggplot(aes(x = longitude, y = latitude)) +
   geom_point(color = "cornflowerblue")
+```
 
+
+We can see that the dataset contain observations outside of the US. We remove these by filtering.
+```{r}
 data_start %<>%
   filter(longitude < -40)
 ```
 
-We can look how companies perform geographically 
-
-```{r}
+We can look how the startups perform geographically. We set the color equal to "status" to separate the startups by whether they're acquired or closed. Furthermore we set the size equal to "funding_total_usd" to make the size of the dots dependent on the amount of funding.
+```{r, message = FALSE}
 qmplot(x = longitude, 
        y = latitude, 
        data = data_start, 
        geom = "point", 
        color = status, 
-       size = funding_total_usd, #har lige kørt efter denne variabel så vi kan se hvor de store ligger
+       size = funding_total_usd,
        alpha = 0.4) +
-  scale_alpha(guide = 'none') # don't show legend for alpha
+  scale_alpha(guide = 'none')
 ```
-Lav de plots her efter vi har fjernet NA's
 
-We take a quick look at the data
+
+## Data preparation process
+We take a quick look at the data. First we divide the "funding_total_usd" by 1000 to make the tables more readable. The "funding_total_usd" will also be renamed to "total".
 ```{r}
+data_start %<>%
+  mutate(total = funding_total_usd / 1000) %>%
+  select(!funding_total_usd)
+
 skim(data_start)
 ```
 
-
-We start by removing columns there are undefined when loading the dataset and columns which show the same things. We also remove variables like longtitude and latitude, which doesnt seem to bring much insight to the ongoing analysis. 
-
+We start by removing columns that are undefined when loading the dataset and columns which show the same things. We also remove variables like longitude and latitude, which doesn't seem to bring much insight to the ongoing analysis.
 ```{r}
-
 data = data_start %>%
   select(!c(`Unnamed: 0`, `Unnamed: 6`, state_code.1, object_id, avg_participants, has_roundA, has_roundB, has_roundC, has_roundD, zip_code, id, city, name, latitude, longitude, labels))
-
 ```
 
-
-**If we want to remove outliers do it here**
-
-Maybe do a boxplot of the numerical variables we use
-
-
-
-
-The data contains 33 numerical variables after the first cleaning, but 22 of those are dummy variables, which are variables we later on could try and see if our clusters are separated by. But as over main objective is to try and separate by the status column "closed or "acquired" we will now take a look an see, which variables seems to be correlated with the status column, starting with the jobtype related dummies, the state related dummies and lastly the three remaining dummies.
+We divide the data into different groups and then look at the data to see where the distribution seem to differ depending on the status of the startup. We use geom_density_ridges to do this.
 
 ```{r, warning=FALSE}
 jobs = data %>% 
@@ -164,23 +157,18 @@ dummies %>%
 
 ```
 
-The plot of the job type related dummies shows, that there is almost no differences in how many firm closes and how many who becomes acquired according to job type.
-  Looking at the state related dummies, the plot shows that a bit more firms from New York, Texas and California are being acquired than from the rest of the united states, which could indicate that they could be useful variables to use in our analysis. But you could also say, that the differences aren't big which would make them less influential in the analysis.
-   Lastly in the plot of the three remaining dummy variables it is clear to see that whether or not the firm has been a top 500 upcoming firm substantially change the chance of closing or not. Whether they have VC or angel investor doesn't seem to influence the outcome in a big way. 
+By looking at the distribution plot we choose the variables that seem to be able to predict whether the startup will close or remain acquired.
 
-Because of the above we drop the state and job variables plus the VC and angel dummies, but we keep is_top200 and then we skim the data again.
-
+Because of the above we drop the state and job variables plus the VC and angel dummies, but we keep is_top500 and then we skim the data again.
 ```{r}
 data %<>%
   select(-c(is_CA, is_TX, is_MA, is_NY, is_otherstate, is_software, is_web, is_mobile, is_enterprise, is_advertising, is_gamesvideo, is_ecommerce, is_biotech, is_consulting, is_othercategory, state_code, category_code, has_angel, has_VC))
 
 skim(data)
-
 ```
-We still have 8 numerical variables and 3 date variables we haven't taken a closer look at so that is what we gonna do now.
 
+We still have 8 numerical variables and 3 date variables we haven't taken a closer look at so that is what we're gonna do now. We again use the geom_density_ridges to look at the relevant variables.
 ```{r, warning=FALSE}
-
 data %>%
   select(status, is_numeric, !is_top500) %>%
   gather(variable, value, -status, -is_top500) %>%
@@ -188,30 +176,26 @@ data %>%
              fill =  as.factor(status), 
              x = percent_rank(value)) ) +
   ggridges::geom_density_ridges(alpha = 0.75)
-
 ```
 
 The above plot shows, that relationships, milestones, funding_total_usd, funding_rounds, closed at, both first and last milestone_year and last_funding_year seems to impact whether or not a firm gets acquired or not. 
-    Closed_at will not be used because it contains almost 600 missing observations which is close to 66% of all observations. Founded at will not be used either simply because there doesnt seem to be that big of a difference in the density plots. And using both first and last milestone_year would maybe be irrelevant because they somehow nearly show the same thing. so we drop them. First and last funding_at doesn't show any significance either, so those also gets dropped.
+    Closed_at will not be used because it contains almost 600 missing observations which is close to 66% of all observations. Founded at will not be used either simply because there doesn't seem to be that big of a difference in the density plots. And using both first and last milestone_year would maybe be irrelevant because they somehow nearly show the same thing. so we drop them. First and last funding_at doesn't show any significance either, so those also gets dropped.
     
 ```{r}
 data%<>%
   select(!c(age_last_milestone_year, closed_at, age_first_funding_year,founded_at, first_funding_at, last_funding_at))
 ```
 
-Now we are left with only our status variable and our 7 numerical variables of interest. Now we check for missing values in our remaning variables.
+Now we are left with only our status variable and our 7 numerical variables of interest. Now we check for missing values in our remaining variables.
 
 ```{r}
 data %>%
-  select(everything()) %>% #Kan slettes?
   summarise_all(funs(sum(is.na(.))))
 ```
 
-The above states that the age_first_milestone_year has 152 missing values. THe problem with this variable is, that if we remove those rows, we lose 16.4% of our observations, and we cant just replace the NA's with something else like zero, because that would just manipulate our data. So the solution we have come up with is to make them into intervals and then just pick one of the intervals to be used in our analysis. 
+The above states that the age_first_milestone_year has 152 missing values. The problem with this variable is, that if we remove those rows, we lose 16.4% of our observations, and we cant just replace the NA's with something else like zero, because that would just manipulate our data. So the solution we have come up with is to make them into intervals and then just pick one of the intervals to be used in our analysis. 
 
 ```{r}
-
-#We make intervals for first milestone
 data %<>%
   mutate(age_first_milestone_year= ifelse(age_first_milestone_year <0,"before year 0",ifelse(age_first_milestone_year <= 3 , "[0-3]", ifelse(age_first_milestone_year <= 6, "]3-6]", ifelse(age_first_milestone_year >6, "over 6",""))))) %>%
   mutate(age_first_milestone_year= replace_na(age_first_milestone_year, "no milestone"))
@@ -228,6 +212,7 @@ data %<>%
   mutate("is_6<" = as.numeric(age_first_milestone_year == "over 6")) %>% 
   mutate("is_no_milestone" = as.numeric(age_first_milestone_year == "no milestone"))
 
+
 data %<>%
   select(!c(age_first_milestone_year, is_before_start, `is_3:6`, `is_6<`, is_no_milestone))
 
@@ -235,41 +220,34 @@ data %<>%
 
 We pick the interval zero to three years, so we drop the rest, which means that firms achieved their first milestone when they were between 0 and 3 years old. We pick this interval because we wanna investigate whether it is positive or not in terms of getting acquired for a firm to get their first milestone quick eg. in the first couple of years.
 
-And this conclude our variable selection which now will be explained more thoroughly below.
+And this conclude our variable selection which now will be explained more thoroughly in the stakeholder.
 
 ```{r}
-names = colnames(data)
-description = c("numeric, age at last/latest funding", "numeric, number of relationships", "numeric, number of funding rounds", "numeric, the total funding in USD", "numeric, number og milestones", "dummy variable, has been a top 500 start up", "character string, acquired or closed", "reach their first milestone at the age of 0-3 years")
-
-table = cbind(names, description); table
+colnames(data)
 ```
-Now we move on to unsupervised machine learning.
 
-**Eller fjerne outliers her**
-
+Then we check for outliers
 
 ```{r}
-
-skim(data)
-
-data %>% 
-  ggplot(aes(funding_total_usd))+
-  geom_histogram()
-
-data%>% arrange(desc(funding_total_usd))
+data_plot = data %>%
+  select(!c(`is_0:3`, is_top500, status))
+  ggplot(gather(data_plot), aes(value)) + 
+    geom_histogram(bins = 10) + 
+    facet_wrap(~key, scales = 'free_x')
+  
+data%>% arrange(desc(total))
 
 data %<>%
-  filter(funding_total_usd < 5700000000)
-  #Changes conclusion and makes the supervised model better. 
-
+  filter(total < 5700000)
 ```
+We removed the outlier in the variable "total" as this value was 10x larger than the second largest observation.
 
+Now we move on to unsupervised machine learning.
 
 # Unsupervised ML
 
-We start by performing dimensionalty reduction on our data, but before we can do that, we need to examine our data to figure out if we need to scale it?
-
-```{r}
+We start by performing dimensionality reduction on our data in the form of PCA, but before we can do that, we need to examine our data to figure out if we need to scale it. We do this by calculating the mean and standard deviations of the variables.
+```{r, warning = FALSE}
 options(scipen = 999)
 
 data_num = data %>% 
@@ -283,16 +261,17 @@ scale= as.data.frame(s_deviation, row.names = c("sd"))%>%
 cbind(as.data.frame(mean1, row.names = "mean"))%>%
 print()
 ```
-We can se the data is gonna need scaling to peform pca, because our variables is not on the same scale. Namely funding_total_usd seems much higher. We also have some dummy variables which only take a value of either 0 or 1, so these will also be on a different scale then the rest, which is makes the case of scaling the data even stronger.
-   So we scale the data by setting the argument scale.unit to TRUE and then we run the PCA. Further we can only run our PCA on numeric variables so we use the data subset just created above "data_num".
+We can se the data is going to need scaling to perform the PCA, because our variables are not on the same scale. Namely "total" seems much larger. We also have some dummy variables which only take a value of either 0 or 1, so these will also be on a different scale then the rest.
 
+## PCA
+We scale the data by setting the argument scale.unit to TRUE and then we run the PCA. Further we can only run our PCA on numeric variables so we use the data subset just created above "data_num".
 ```{r warning=FALSE}
 res_pca <- data_num %>%
   PCA(scale.unit = TRUE, graph =FALSE)
 
 ```
 
-Now we have our PCA we can create a screeplot to pick number og dimensions to use. 
+Now we have our PCA we can create a screeplot to pick the number of dimensions to use. 
 ```{r}
 res_pca %>% 
   fviz_screeplot(addlabels = TRUE, 
@@ -301,7 +280,7 @@ res_pca %>%
 
 eig.val = get_eigenvalue(res_pca); eig.val
 ```
-We can see the elbow shows the optimal dimensions are three dimensions with almost 65% explained variance. If we only look at the eigenvalues then our rule of thumb is to pick the dimensions with an eigenvalue >=1, which in this case is two dimensions. Those two dimensions only account for 52% of the total variance, which isn't that high.
+We can see the elbow shows the optimal dimensions are three dimensions with almost 69% explained variance. If we only look at the eigenvalues then our rule of thumb is to pick the dimensions with an eigenvalue >=1, which in this case is two dimensions. Those two dimensions only account for 57% of the total variance, which isn't that high.
    As it is hard to understand a plot with three dimensions we visualize our reduced data in two dimensions.
 
 ```{r}
@@ -313,10 +292,10 @@ res_pca %>%
                ggtheme = theme_gray()) 
 ```
 
-From the plot we can see, that the x-axis split our six variables into two groups. Where the ones involving funding or money is below the x_axis and variables like milestones, relationships and is_0:3 are above the x-axis. Our last variable whether a firm has been top500 lies almost on the x-axis, which indicates that it is mostly explained by the first dimension.
- It can be said about our variables, that the less opaque the arrow the higher the cos2 and thereby a higher representation of the variable in the principal components we have used eg. funding total USD is not as well explained by the first two principal components as the other variables. Contrib show almost the same as it is just (cos2*100)/(total cos2 of the component), that is why we see the one which are the most opaque also being the one with a blue/greenish color. 
+From the plot we can see, that the x-axis split our seven variables into two groups. Where the ones involving funding or money is below or on the x_axis. funding_rounds lies on the x-axis which indicates that it is mostly explained by the first dimension. Variables like milestones, relationships, is_top500 and is_0:3 are above the x-axis. 
+ It can be said about our variables, that the less opaque the arrow the higher the cos2 and thereby a higher representation of the variable in the principal components we have used eg. is_top500 is not as well explained by the first two principal components as the other variables. Contrib shows almost the same as it is just (cos2*100)/(total cos2 of the component), that is why we see the one which are the most opaque also being the one with a blue/greenish color.
 
-Now we plot all our observations in the two dimensional space and try to split them up by there status of either being aquired or closed.
+Now we plot all our observations in the two dimensional space and try to split them up by their status of either being acquired or closed.
 ```{r, fig.height=7, fig.width=9, warning=FALSE}
 res_pca %>%
 fviz_pca_biplot(alpha.ind = "cos2",
@@ -327,37 +306,14 @@ ggtheme = theme_gray())
 
 ```
 
-The plot shows that the red which is the firms who have been aquired tends to be more to the right, which indicates that they have reach more milestones, had more relationships and had a higher tendency to be a top500 start up. But to conclude the PCA doesnt really seperate the firms by status.
-   Next we are going to use another dimensionality reduction method namely umap to see if it does a better job.
-   
-   
-  
-   
-   
-**Myb do one more plot with different elipses could make a categorical variable from the starting data**
+The plot shows that the red which is the firms who have been aquired tends to be more to the right, which indicates that they have reached more milestones, had more relationships and had a higher tendency to be a top500 startup. But to conclude the PCA doesn't really separate the firms by status.
 
-```{r}
+We've tried doing the ellipses with other categories such as state of origin and type of industry, but neither one seems to show intuitive results.
 
-uml_elipse_data=data_start%>%
-  filter(funding_total_usd < 5700000000 )%>%
-  mutate(state_code= ifelse(state_code %in% c("CA", "MA", "NY", "TX"), state_code, "other"))
-
-
-
-```
-
-```{r, fig.height=7, fig.width=9, warning=FALSE}
-res_pca %>%
-fviz_pca_biplot(alpha.ind = "cos2",
-habillage = uml_elipse_data %>% pull(state_code) %>% factor(),
-addEllipses = TRUE,
-geom = "point",
-ggtheme = theme_gray())
-
-```
+Next we are going to use another dimensionality reduction method namely UMAP to see if it does a better job.
    
 ## UMAP
-First we create the UMAP object and remember to scale it:
+First we create the UMAP object and remember to scale it. n_neigbors shows the size of the local neighborhood. A smaller value will result in more data being preserved. We set metric to "cosine", which is just a method of calculating the distances between observations. min_dist just shows the minimum amount of distance allowed between the observations.
 ```{r}
 res_umap <- data_num  %>%
 umap(n_neighbors = 15,
@@ -366,7 +322,7 @@ min_dist = 0.01,
 scale = TRUE)
 ```
 
-Then we plot it in a two dimensional space and fill our observations by status:
+Then we plot it in a two dimensional space and fill our observations by status.
 
 ```{r}
 res_umap %>%
@@ -375,33 +331,33 @@ ggplot(aes(x = V1, y = V2, fill = data$status)) +
 geom_point(shape = 21, alpha = 0.5)
 ```
 
-UMAP seem to separate the observations better as we kinda have 4 clusters here. But they are not separated that well between closed and acquired. It does however seem like most of the firms which has been acquired **(closed right?)** is to the left and the top left of the plot.
+UMAP seems to separate the observations better as we kinda have 4 clusters here. But they are not separated that well between closed and acquired. Again we have used various categories in the "fill" of the function, but the others didn't seem to show a very meaningful separation.
 
 ## K-means clustering
-
-Now we wanna look at clustering of our data to see, whether our data are clustered by status or not, we make clusters both on our data and on our pca data and we both make K-means clustering and hierachical clustering.
-   First K-means clustering on our dataset.
+Now we wanna look at clustering of our data to see, whether our data are clustered by status or not, we make clusters both on our data and on our PCA data and we both make K-means clustering and hierarchical clustering.
+   First K-means clustering on our dataset. We set the method to be used for estimating the optimal number of clusters to "wss" which is the total within sum of square.
 ```{r}
 data_num %>%
 scale() %>%
 fviz_nbclust(kmeans, method = "wss")
 ```
-Seems like the optimal number of clusters is somewhere around 4 clusters, but as we wanna show whether we can make two clusters which are separated by status which only has two different values "acquired" and "closed" we move on with two clusters.
+Seems like the optimal number of clusters is somewhere around 3 clusters, but as we want to show whether we can make two clusters which are separated by status which only has two different values "acquired" and "closed" we move on with two clusters.
 
+We set the number of clusters (centers) to 2. We set nstart to 20, which indicates how many different random starting points the test will do in order to select the best one.
 ```{r}
 res_km2 <- data_num %>%
 scale() %>%
 kmeans(centers = 2, nstart = 20)
 ```
 
-
+Now we plot the clusters.
 ```{r}
 res_km2 %>%
 fviz_cluster(data = data_num ,
 ggtheme = theme_gray())
 ```
 
-The two clusters created by the K-means doesn't seem to separate our data points between status, which is unfortunate, but we still take a look of the result in a table by extracting the cluster number and putting into our data set.
+K-means makes 2 clusters, but to observe the separation more clearly, we take a look at the result in a table by extracting the cluster number and putting into our data set.
 
 ```{r}
 data[,"cluster2"] <- res_km2$cluster
@@ -409,12 +365,10 @@ data[,"cluster2"] <- res_km2$cluster
 table(data$cluster2, data$status)
 
 ```
-The clusters don't seem to be separated by the status of the firm at all. We can see that cluster 1 both has most firm who have been acquired and closed.
-
-Now we try to run K-means again this time on the dimensionalty reduced data, so we extracted the first two components and put them into a new data set called pca_data. 
-
+The clusters don't seem to be separated by the status of the startup at all. We can see that one of the clusters both has most startups who have been acquired and closed.
 
 ## K-means clustering after dimensionality reduction
+Now we try to run K-means again - this time on the dimensionality reduced data, so we extracted the first two components as the eigenvalue limited the number of dimensions to two, even though the screeplot showed three dimensions (we performed K-means clustering with three dimensions, but didn't get separated clusters) and put them into a new data set called data_pca.
 ```{r}
 pca1 = res_pca$ind$coord[,1]
 pca2 = res_pca$ind$coord[,2]
@@ -426,10 +380,9 @@ data_pca %>%
   fviz_nbclust(kmeans, method = "wss")
 ```
 
-We can now see the elbow is formed at 3 clusters, but we still move on with 2 as we wanna try and separate by status.
+We can now see the elbow is formed at 3 clusters, but we still move on with 2 as we want to try and separate by status.
 
 ```{r}
-
 res_km_pca1 <- data_pca %>% 
   scale() %>% 
   kmeans(centers = 2, nstart = 20)  
@@ -439,21 +392,19 @@ res_km_pca1 <- data_pca %>%
 ```{r,,fig.width=15,fig.height=10,fig.align='center'}
 res_km_pca1 %>% 
   fviz_cluster(data = data_pca,
-               ggtheme = theme_gray())  
-
+               ggtheme = theme_gray())
 ```
 
-Clustering with the pca data seems to make two clusters who are much more separated, so we again check in a table to to see how well they are separated by status
+Clustering with the pca data seems to make two clusters who are much more separated, so we again check in a table to to see how well they are separated by status.
 
 ```{r}
 data[,"cluster_pca2"] <- res_km_pca1$cluster
   
-table(data$cluster_pca2, data$status)
-table(data$cluster2, data$status)
+table(data$cluster_pca2, data$status); table(data$cluster2, data$status)
 ```
 Running it on the dimensionality reduced data seems to have separated the firms by status a little worse then by running it on the entire data. We see the acquired firms are almost identical between the two, but the number of closed firm in each clusters has come closer to each other instead of farther away.
 
-Now we will try to use a different clustering method namely hierachical clustering.
+Now we will try to use a different clustering method namely hierarchical clustering.
 
 ## Hierarchical clustering
 
@@ -461,37 +412,43 @@ Now we will try to use a different clustering method namely hierachical clusteri
 
 We make the hclust object and put stand equal to true as it will scale our data.
 ```{r}
+fviz_nbclust(data_num, FUN = hcut, method = "wss")
+```
+
+We see that the optimal amount of clusters is 3, but again we use 2.
+
+```{r}
 res_hc = data_num %>% 
   hcut(hc_func = "hclust", k = 2, stand = TRUE)
 ```
 
-Then we make a dendogram
+Then we make a dendogram.
 
 ```{r}
 res_hc %>% 
   fviz_dend(rect = TRUE, cex = 0.5)
 ```
-The dendogram can be a bit of a mess when you deal with a high number of observations, but we can clearly see that by dealing with only two clusters we separate our data high up in the dendogram, which basiclly means that the two clusters are hard to distinguish between, which partly explains why we are having a hard time separating our firms by status.
-   But as before we can plot our clusters in two dimensional space
+
+The dendogram can be a bit of a mess when you deal with a high number of observations, but we can clearly see that by dealing with only two clusters we separate our data high up in the dendogram, which basically means that the two clusters are hard to distinguish between, which partly explains why we are having a hard time separating our startups by status.
+   But as before we can plot our clusters in two dimensional space.
   
 ```{r}
 res_hc %>% 
   fviz_cluster(data = data_num, ggtheme = theme_gray())
 ```
-The plot in it self looks like the two clusters a fairly overlapped which might be due to us forcing 2 clusters on it instead 4 as the screeplot showed, but let us take a look at how well it separated the firms by status.
+The plot in itself looks like the two clusters are fairly overlapped which might be due to us forcing 2 clusters on it instead 3 as the screeplot showed, but let us take a look at how well it separated the firms by status.
 
 ```{r}
 data[,"cluster_hclust2"] <- res_hc$cluster
   
 table(data$cluster_hclust2, data$status)
 ```
-The hierarchical clustering of the data seems to do a better job of at least putting the acquired firms in different clusters, although the closed are still fairly spread out.
+
+Again, it seems that the the hierarchical clustering of the data doesn't really separate the startups in different clusters, although cluster 1 contains the largest amount of closed startups while cluster 2 contains the largest amount of acquired startups.
    Lastly let us try hclust on the PCA data.
-   
 
 ## Hierarchical clustering after dimensionality reduction
-
-We could do this as we did with K-means but hclust has this build in function who knows where to get the PCA's and then cluster them.
+We could do this as we did with K-means but hclust has this build in function which knows where to get the PCA's and then cluster them.
 ```{r}
 res_hcpc = res_pca %>% 
   HCPC(nb.clust = 2, graph = FALSE)
@@ -499,36 +456,30 @@ res_hcpc = res_pca %>%
 
 Then we plot it
 ```{r}
-res_hcpc %>% 
-  plot(choice = "map")
+res_hcpc %>%
+  plot(choice = "3D.map")
 ```
-The plot is a bit of a mess because it also plot the trees and it is hard to distinguish were the black dots starts and where the red begins, so it seems like the clusters are not ideal, this might again be due to the fact stated above.
+The plot is a bit of a mess because it also plots the trees and it is hard to distinguish where the black dots starts and where the red begins, so it seems like the clusters are not ideal, this might again be due to the fact stated above.
 
 ```{r}
 data[,"cluster_hclust_pca2"] <- res_hcpc$data.clust$clust
   
-table(data$cluster_hclust_pca2, data$status)
-table(data$cluster_hclust2, data$status)
+table(data$cluster_hclust_pca2, data$status); table(data$cluster_hclust2, data$status)
 ```
-It can be seen that running hierarchical clustering both before and after dimensionality reduction seems to yield almost identical outcomes. Cluster 1 has just become bigger by two closing firms and that is the only difference.
+
+After using PCA it looks like "acquired" is separated more clearly into one cluster, but is still having trouble separating "closed" into one cluster.
    The variables used in this analysis wasnt able to capture the effects that are crucial to whether a start up is getting acquired or closed. This might be due to that fact that a lot more variables plays a part in this and maybe also a bit of luck, which cant be quantified.
 
+Now we move on to supervised machine learning.
 
 # SML
+
+We start by creating a new dataset and renaming our "status" variable to "y" for convenience, because this is the variable we want to predict.
 ```{r}
-data %>% head()
-```
-
-```{r}
-data %>% glimpse()
-
-```
-
-
-```{r}
+data
 data_sml= data %>%
   rename(y = status) %>%
-  select(y, funding_total_usd, funding_rounds, relationships, milestones, is_top500, `is_0:3`, age_last_funding_year) 
+  select(y, total, funding_rounds, relationships, milestones, is_top500, `is_0:3`, age_last_funding_year) 
 
 glimpse(data_sml)
 ```
@@ -570,7 +521,7 @@ step_log bruges hvis variablen er lidt scewed!
 
 data_recipe <- data_train %>%
   recipe(y ~.) %>%
-  step_log(funding_total_usd) %>% #Myb just delete this one
+  step_log(total) %>% #Myb just delete this one
   step_center(all_numeric(), -all_outcomes()) %>%
   step_scale(all_numeric(), -all_outcomes()) %>%
   step_dummy(all_nominal(), -all_outcomes()) %>% 
