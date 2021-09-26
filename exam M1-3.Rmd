@@ -8,7 +8,7 @@ output:
 ---
 
 
-```{r, warning = FALSE}
+```{r, warning = FALSE, message = FALSE}
 library(tidyverse)
 
 library(lubridate)
