@@ -414,8 +414,6 @@ Now we will try to use a different clustering method namely hierarchical cluster
 
 ## Hierarchical clustering
 
-**Kan ik huske men er der en måde at finde optimale mængde cluster her?**
-
 We make the hclust object and put stand equal to true as it will scale our data.
 ```{r}
 fviz_nbclust(data_num, FUN = hcut, method = "wss")
