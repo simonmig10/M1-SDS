@@ -239,6 +239,12 @@ data%>% arrange(desc(total))
 
 data %<>%
   filter(total < 5700000)
+
+data_plot = data %>%
+  select(!c(`is_0:3`, is_top500, status))
+  ggplot(gather(data_plot), aes(value)) + 
+    geom_histogram(bins = 10) + 
+    facet_wrap(~key, scales = 'free_x')
 ```
 We removed the outlier in the variable "total" as this value was 10x larger than the second largest observation.
 
@@ -476,7 +482,7 @@ Now we move on to supervised machine learning.
 
 We start by creating a new dataset and renaming our "status" variable to "y" for convenience, because this is the variable we want to predict.
 ```{r}
-data
+
 data_sml= data %>%
   rename(y = status) %>%
   select(y, total, funding_rounds, relationships, milestones, is_top500, `is_0:3`, age_last_funding_year) 
@@ -484,16 +490,13 @@ data_sml= data %>%
 glimpse(data_sml)
 ```
 
-## Data Preprocessing
+## Training & Test split
 
-
-### Training & Test split
-
-Just to get an idea how the y variable is split between aquaried and closed we can do a histogram
+Just to get an idea how the y variable is split between acquired and closed we can do a histogram
 
 ```{r}
 data_sml %>% 
-  ggplot(aes(y)) +
+  ggplot(aes(y, fill= y)) +
   geom_bar() 
 ```
 We can see there are more observations under acquired than closed, so to be certain that the training and test data will be as similar as possible we set the strata argument equal to y when we split the data.
@@ -508,20 +511,21 @@ data_test <- data_split %>% testing()
 ```
 
 
-### EDA on the training data
-
-
-
 ### Preprocessing recipe
 
-
-step_log bruges hvis variablen er lidt scewed!
+To automate the process we create a recipe that will procces the data using: 
+Step_log, which will log transform data (usefull as many of our variables are right-skewed) 
+step_center, Centers all numeric variables to mean = 0.
+step_scale, scales all numeric variables to sd = 1.
+step_dummy converts categorical/factor variables into binary dummies. 
 
 ```{r}
 
+
+
 data_recipe <- data_train %>%
   recipe(y ~.) %>%
-  step_log(total) %>% #Myb just delete this one
+  step_log(total, funding_rounds) %>% 
   step_center(all_numeric(), -all_outcomes()) %>%
   step_scale(all_numeric(), -all_outcomes()) %>%
   step_dummy(all_nominal(), -all_outcomes()) %>% 
@@ -532,21 +536,23 @@ summary(data_recipe)
 
 ```
 
-
-
-```{r}
-prepped_data <- 
-  data_recipe %>% # use the recipe object
-  prep() %>% # perform the recipe on training data
-  juice()%>%
-  glimpse()# extract only the preprocessed dataframe
-```
-
 ### Defining the models
 
+We will now start specifying our models as follows:
 
+1. pick a model type
+  - Logistic regression
+  - Decision tree
+  - XGBoost
+  - K- nearest neighboors
+  - Random forrest
+  
+2. set the engine: the softwear used to fit the model 
+
+3. set the mode: which in this case will be classification. 
 
 #### Logistic Regression
+
 
 ```{r}
 model_lg <- logistic_reg(mode = 'classification') %>%
@@ -566,6 +572,7 @@ model_dt <- decision_tree(mode = 'classification',
 
 #### Extreme Gradient Boosted Tree (XGBoost)
 
+
 ```{r}
 model_xg <- boost_tree(mode = 'classification', 
                        trees = 100,
@@ -578,7 +585,7 @@ model_xg <- boost_tree(mode = 'classification',
 ```
 
 
-### K-nearest neighbor
+#### K-nearest neighbor
 ```{r}
 model_knn <- 
   nearest_neighbor(neighbors = 4) %>% # we can adjust the number of neighbors 
@@ -599,9 +606,11 @@ model_rf <-
 
 ```
 
+
+
 #### Define workflow
 
-
+We will now define the workflow of the model by adding first the recipe to a general workflow, and then using this to create a workflow for each model. 
 
 ```{r}
 workflow_general <- workflow() %>%
@@ -627,12 +636,13 @@ workflow_rf <- workflow_general %>%
 
 ### Hyperparameter Tuning
 
+As the parameters in the decision tree and XGBoost model are set to tune(), we will now find the optimal values for the parameters. 
+
 #### Validation Sampling (N-fold crossvlidation)
 
-
+We use k-fold crossvalidation to build a set of 5 validation folds with the function vfold_cv. We also use stratified sampling by setting the strata argument to y. We set repeats equal to 3. We dont have to use boosttraps as we have enogh observations.  
 
 ```{r}
-
 set.seed(100)
 
 data_resample <- data_train %>% 
@@ -641,22 +651,26 @@ data_resample <- data_train %>%
            repeats = 3)
 ```
 
+
+
 #### Hyperparameter Tuning: Decision Tree
 
-
+First we tune the decision tree, using the tune_grid function where we first specify the workflow, next we give it the resampled data, and last the grid means give us 10 different versions of every tuneable parameters. 
 ```{r}
 tune_dt <-
   tune_grid(
     workflow_dt,
     resamples = data_resample,
-    grid = 5
+    grid = 10
   )
 ```
+
+We can now see that the tuned parameters are plotted with different values compared to the accuracy and roc-auc values. 
 
 ```{r}
 tune_dt %>% autoplot()
 ```
-
+We will now use the select_best function to select the parameters that maximize the area under the roc curve. 
 ```{r}
 best_param_dt <- tune_dt %>% select_best(metric = 'roc_auc')
 best_param_dt
@@ -669,7 +683,7 @@ tune_dt %>% show_best(metric = 'roc_auc', n = 1)
 
 #### Hyperparameter Tuning: Random Forest
 
-
+We now do the same for the Random Forest model again using the tune_grid function where we first specify the workflow, next we give it the resampled data, and last the grid means give us 10 different versions of every tuneable parameters. 
 
 ```{r}
 
@@ -697,8 +711,7 @@ tune_xg %>% show_best(metric = 'roc_auc', n = 1)
 
 #### Fit models with tuned hyperparameters
 
-
-
+We now fit the best parameters into the workflow of the two models. 
 
 ```{r}
 workflow_final_dt <- workflow_dt %>%
@@ -709,10 +722,10 @@ workflow_final_xg <- workflow_xg %>%
 ```
 
 ## Evaluate models
-Her bruger vi vores validation set
+here we us the resampled data to evaluate the models. 
 
 ### Logistic regression
-We use our workflow object to perform resampling. Furthermore, we use metric_set()to choose some common classification performance metrics provided by the yardstick package. Visit yardsticks reference to see the complete list of all possible metrics.
+We use our workflow object to perform resampling. Furthermore, we use metric_set() to choose some common classification performance metrics provided by the yardstick package. Visit yardsticks reference to see the complete list of all possible metrics.
 
 Note that Cohen’s kappa coefficient (κ) is a similar measure to accuracy, but is normalized by the accuracy that would be expected by chance alone and is very useful when one or more classes have large frequency distributions. The higher the value, the better.
 
@@ -736,14 +749,15 @@ log_res %>% collect_metrics(summarize = TRUE)
 
 #### Model coefficients
 
+we save model coefficients for a fitted model object from a workflow using the same code as before only with one exception using extract and our new function. 
+
 ```{r}
-# save model coefficients for a fitted model object from a workflow
 
 get_model <- function(x) {
   pull_workflow_fit(x) %>% tidy()
 }
 
-# same as before with one exception
+
 log_res_2 <- 
   workflow_lg %>% 
   fit_resamples(
@@ -754,10 +768,11 @@ log_res_2 <-
       roc_auc, sens, spec),
     control = control_resamples(
       save_pred = TRUE,
-      extract = get_model) # use extract and our new function
+      extract = get_model) 
     ) 
 ```
 
+We can now see the estimate std.error and t-statistic/p-value for each variable. 
 ```{r}
 log_res_2$.extracts[[1]][[1]]
 ```
@@ -771,7 +786,7 @@ Show all of the resample coefficients for a single predictor:
 filter(all_coef, term == "relationships")
 ```
 
-### Dicision tree
+### Decision tree
 
 
 ```{r}
@@ -838,28 +853,15 @@ rf_res <-
 rf_res %>%  collect_metrics(summarize = TRUE)
 ```
 
+## Compare performance
 
-
-```{r}
-#fit_lg <- workflow_lg %>%
-  #fit(data_train)
-
-#fit_dt <- workflow_final_dt %>%
-  #fit(data_train)
-
-#fit_xg <- workflow_final_xg %>%
-  #fit(data_train)
-```
-
-#### Compare performance
-
-## Compare models
+We get a summary for the performed models. We add the model name to each metric to keep the models appart from each other later on. 
 
 ```{r}
 log_metrics <- 
   log_res %>% 
   collect_metrics(summarise = TRUE) %>%
-  mutate(model = "Logistic Regression") # add the name of the model to every row
+  mutate(model = "Logistic Regression") 
 
 rf_metrics <- 
   rf_res %>% 
@@ -884,8 +886,10 @@ dt_metrics <-
 ```
 
 
+We now bind the rows for the above metricies and create a dataframe, we then change the data structure and show the mean_f_meas score for each model which include the precision and recall score.
+
+Precision quantifies the number of positive class predictions that actually belong to the positive class. Recall quantifies the number of positive class predictions made out of all positive examples in the dataset. F-Measure provides a single score that balances both the concerns of precision and recall in one number.
 ```{r}
-# create dataframe with all models
 model_compare <- bind_rows(
                           log_metrics,
                            rf_metrics,
@@ -894,16 +898,16 @@ model_compare <- bind_rows(
                           dt_metrics,
                            ) 
 
-# change data structure
+
 model_comp <- 
   model_compare %>% 
   select(model, .metric, mean, std_err) %>% 
   pivot_wider(names_from = .metric, values_from = c(mean, std_err)) 
 
-# show mean F1-Score for every model
+
 model_comp %>% 
   arrange(mean_f_meas) %>% 
-  mutate(model = fct_reorder(model, mean_f_meas)) %>% # order results
+  mutate(model = fct_reorder(model, mean_f_meas)) %>% 
   ggplot(aes(model, mean_f_meas, fill=model)) +
   geom_col() +
   coord_flip() +
@@ -914,8 +918,9 @@ model_comp %>%
      vjust = 1
   )
 ```
+
+We will now show the mean area under the curve for each of the models. 
 ```{r}
-# show mean area under the curve (auc) per model
 model_comp %>% 
   arrange(mean_roc_auc) %>% 
   mutate(model = fct_reorder(model, mean_roc_auc)) %>%
@@ -930,11 +935,11 @@ model_comp %>%
   )
 ```
 
-# choose model
+## choose model
 
-## Log-reg model 
+### Log-reg model 
 
-### Performance metrics
+#### Performance metrics
 Show average performance over all folds (note that we use log_res):
 
 ```{r}
@@ -946,7 +951,7 @@ Show performance for every single fold:
 log_res %>%  collect_metrics(summarize = FALSE)
 ```
 
-### Collect model predictions
+#### Collect model predictions
 To obtain the actual model predictions, we use the function collect_predictions and save the result as log_pred:
 
 ```{r}
@@ -957,21 +962,18 @@ log_pred <-
 
 ### Confusion Matrix
 
-Nu kan vi bruge vores indsamlede predictions til at lave en confusion matrix
-
+We can now use our collected predictions to make a confusion matrix
 ```{r}
 log_pred %>% 
   conf_mat(y, .pred_class) 
 ```
 
-Eller
+And we can also visualize 
 ```{r}
 log_pred %>% 
   conf_mat(y, .pred_class) %>% 
   autoplot(type = "mosaic")
 ```
-
-Eller (den her synes jeg er bedst)
 
 ```{r}
 log_pred %>% 
@@ -979,23 +981,23 @@ log_pred %>%
   autoplot(type = "heatmap")
 ```
 
-## ROC curve
+#### ROC curve
+
+We will now create the ROC curve with 1 - specificity on the x-axis (false positive fraction = FP/(FP+TN)) and sensitivity on the y axis (true positive fraction = TP/(TP+FN)). 
 ```{r}
 log_pred %>% 
   roc_curve(y, .pred_acquired) %>% 
   autoplot()
 ```
 
-Med folds
+We can create the same curve for each of the folds used from the resampled data. 
 ```{r}
 log_pred %>% 
   group_by(id) %>%
     roc_curve(y, .pred_acquired) %>% 
   autoplot()
 ```
-
-Kan vi lave på andre end log
-
+We can plot the predicted probability distributions for our two classes. 
 
 ```{r}
 log_pred %>% 
@@ -1008,7 +1010,7 @@ log_pred %>%
 ## XGboost model 
 
 ### Performance metrics
-Show average performance over all folds (note that we use log_res):
+Show average performance over all folds.
 
 ```{r}
 xgb_res %>%  collect_metrics(summarize = TRUE)
@@ -1020,7 +1022,7 @@ xgb_res %>%  collect_metrics(summarize = FALSE)
 ```
 
 ### Collect model predictions
-To obtain the actual model predictions, we use the function collect_predictions and save the result as log_pred:
+To obtain the actual model predictions, we use the function collect_predictions and save the result as xgb_pred:
 
 ```{r}
 xgb_pred <- 
@@ -1030,21 +1032,20 @@ xgb_pred <-
 
 ### Confusion Matrix
 
-Nu kan vi bruge vores indsamlede predictions til at lave en confusion matrix
-
+We can now use our collected predictions to make a confusion matrix
 ```{r}
 xgb_pred %>% 
   conf_mat(y, .pred_class) 
 ```
 
-Eller
+And visualize it again
 ```{r}
 xgb_pred %>% 
   conf_mat(y, .pred_class) %>% 
   autoplot(type = "mosaic")
 ```
 
-Eller (den her synes jeg er bedst)
+
 
 ```{r}
 xgb_pred %>% 
@@ -1053,22 +1054,22 @@ xgb_pred %>%
 ```
 
 ## ROC curve
+
+We will now create the ROC curve with 1 - specificity on the x-axis (false positive fraction = FP/(FP+TN)) and sensitivity on the y axis (true positive fraction = TP/(TP+FN)).
 ```{r}
 xgb_pred %>% 
   roc_curve(y, .pred_acquired) %>% 
   autoplot()
 ```
 
-Med folds
+And now using the folds again. 
 ```{r}
 xgb_pred %>% 
   group_by(id) %>%
     roc_curve(y, .pred_acquired) %>% 
   autoplot()
 ```
-
-Kan vi lave på andre end log
-
+We again show the probability distributions for our two classes. 
 
 ```{r}
 xgb_pred %>% 
@@ -1081,7 +1082,7 @@ xgb_pred %>%
 ## Random forrest model 
 
 ### Performance metrics
-Show average performance over all folds (note that we use log_res):
+Show average performance over all folds:
 
 ```{r}
 rf_res %>%  collect_metrics(summarize = TRUE)
@@ -1103,21 +1104,19 @@ rf_res <-
 
 ### Confusion Matrix
 
-Nu kan vi bruge vores indsamlede predictions til at lave en confusion matrix
+Create the confusion matrix for the predicted values. 
 
 ```{r}
 rf_res %>% 
   conf_mat(y, .pred_class) 
 ```
 
-Eller
+Visualize again
 ```{r}
 rf_res %>% 
   conf_mat(y, .pred_class) %>% 
   autoplot(type = "mosaic")
 ```
-
-Eller (den her synes jeg er bedst)
 
 ```{r}
 rf_res %>% 
@@ -1126,13 +1125,15 @@ rf_res %>%
 ```
 
 ## ROC curve
+
+We will now create the ROC curve with 1 - specificity on the x-axis (false positive fraction = FP/(FP+TN)) and sensitivity on the y axis (true positive fraction = TP/(TP+FN)).
 ```{r}
 rf_res %>% 
   roc_curve(y, .pred_acquired) %>% 
   autoplot()
 ```
 
-Med folds
+With folds.
 ```{r}
 rf_res %>% 
   group_by(id) %>%
@@ -1140,8 +1141,8 @@ rf_res %>%
   autoplot()
 ```
 
-Kan vi lave på andre end log
 
+We create the predicted probability distributions for our two classes. 
 
 ```{r}
 rf_res %>% 
@@ -1194,8 +1195,9 @@ last_fit_xgb %>%
 ```
 
 
-#### We use Random Forrest on the test data
+## Random Forest on test data
 
+We now use the test data by setting the split argument equal to data_split. 
 
 ```{r}
 last_fit_rf <- last_fit(workflow_rf, 
@@ -1213,14 +1215,17 @@ last_fit_rf %>%
   collect_metrics()
 ```
 
+We use the pluck function to calculate the variables with the biggest importance for the predicted variable. 
 
 ```{r}
 last_fit_rf %>% 
   pluck(".workflow", 1) %>%   
   pull_workflow_fit() %>% 
-  vip(num_features = 10)
+  vip(num_features = 7)
 ```
 
+
+We can also make the confusion matrix using the test data
 ```{r}
 last_fit_rf %>%
   collect_predictions() %>% 
@@ -1229,6 +1234,7 @@ last_fit_rf %>%
 
 ```
 
+And lastly show the ROC curve using the test data. 
 ```{r}
 last_fit_rf %>% 
   collect_predictions() %>% 
