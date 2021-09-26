@@ -2,7 +2,7 @@
 title: "Exam"
 author: "Andreas, Kristoffer, Mikkel & Simon"
 date: "22/9/2021"
-output: beamer_presentation
+output:
     pdf_document:
         latex_engine: xelatex
 ---
